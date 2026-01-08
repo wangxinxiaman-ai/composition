@@ -1,0 +1,8 @@
+node_modules/
+temp_uploads/
+.env
+*.log
+.DS_Store
+deploy_package/
+deploy_test_dir/
+output/
