@@ -1,0 +1,697 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI作文批改-首页</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg:#f7f8fa; --card:#ffffff; --text:#1f2d3d; --muted:#6b7280; --accent:#4f46e5; --accent-2:#14b8a6; --border:#e5e7eb; --danger:#ef4444; --success:#10b981; }
+    html,body { background: var(--bg); color: var(--text); font-family: 'Noto Sans SC', system-ui, -apple-system, 'Segoe UI', Roboto; }
+    .page { max-width: 1080px; margin: 24px auto; padding: 0 16px; }
+    .header { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color:#fff; border-radius: 16px; padding: 24px; box-shadow: 0 8px 24px rgba(79,70,229,.2); }
+    .title { font-size: 26px; font-weight: 700; }
+    .sub { margin-top: 6px; font-size: 14px; opacity: .9; }
+    .card { background: var(--card); border-radius: 16px; box-shadow: 0 6px 18px rgba(0,0,0,.06); border:1px solid var(--border); margin-top: 20px; }
+    .card h3 { margin: 0; padding: 16px 20px; font-size: 18px; border-bottom:1px solid var(--border); }
+    .card-body { padding: 18px 20px; }
+    .grid-choices { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .choice { border:1px solid var(--border); border-radius: 12px; padding: 12px; cursor:pointer; background:#fff; }
+    .choice.selected { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(79,70,229,.15); }
+    .choice-title { font-weight: 600; font-size: 15px; }
+    .choice-desc { color: var(--muted); font-size: 13px; margin-top: 4px; }
+    .upload { border:2px dashed var(--border); border-radius: 12px; padding: 16px; text-align: center; background:#fcfcff; }
+    .upload.drag { background:#f0f9ff; border-color:#93c5fd; }
+    .btn { appearance:none; border:1px solid var(--border); background:#fff; border-radius: 999px; padding:10px 14px; font-size:14px; cursor:pointer; }
+    .btn-primary { background: var(--accent); color:#fff; border-color: transparent; }
+    .btn:disabled { cursor:not-allowed; opacity:.6; }
+    .thumbs { display:flex; flex-wrap:wrap; gap:10px; margin-top: 12px; }
+    .thumb { width: 120px; height: 120px; border:1px solid var(--border); border-radius: 10px; overflow:hidden; position: relative; background:#fff; }
+    .thumb img { width:100%; height:100%; object-fit: cover; }
+    .thumb .remove { position:absolute; top:6px; right:6px; background: rgba(0,0,0,.55); color:#fff; border:none; border-radius:999px; width:24px; height:24px; cursor:pointer; }
+    .footer-actions { display:flex; justify-content:flex-end; gap:10px; margin-top: 16px; }
+    .hint { color: var(--muted); font-size: 13px; margin-top: 6px; }
+    .error { color: var(--danger); font-size: 13px; margin-top: 6px; }
+    .success { color: var(--success); font-size: 13px; margin-top: 6px; }
+
+    #debug-log-panel {
+        position: fixed;
+        bottom: 0;
+        right: 0;
+        width: 100%;
+        max-width: 600px;
+        height: 300px;
+        background: rgba(0, 0, 0, 0.85);
+        color: #0f0;
+        font-family: monospace;
+        font-size: 12px;
+        padding: 10px;
+        overflow-y: auto;
+        z-index: 9999;
+        display: none;
+        border-top-left-radius: 8px;
+        box-shadow: -2px -2px 10px rgba(0,0,0,0.2);
+    }
+    #debug-log-panel .log-entry { border-bottom: 1px solid #333; padding: 2px 0; }
+    #debug-log-panel .log-time { color: #888; margin-right: 8px; }
+    #debug-log-panel .log-error { color: #ff5555; }
+    #debug-log-panel .log-heartbeat { color: #55ffff; }
+    
+    @media (max-width: 640px) {
+      .grid-choices { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div id="debug-log-panel"></div>
+  <div class="page">
+    <div class="header">
+      <div class="title">AI作文批改</div>
+      <div class="sub">请选择学段与文体（六项之一），上传 1–3 张作文图片后点击“批改”。</div>
+    </div>
+
+    <div class="card">
+      <h3>选择学段与文体</h3>
+      <div class="card-body">
+        <div class="grid-choices" id="choices"></div>
+        <div class="hint">已选择：<span id="chosenText">未选择</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>上传作文图片</h3>
+      <div class="card-body">
+        <div id="studentList"></div>
+        <button id="addStudentBtn" class="btn" style="margin-top:12px; border-style:dashed; color:var(--accent); border-color:var(--accent);">+ 添加学生 (最多 5 人)</button>
+        <div id="uploadError" class="error" style="display:none"></div>
+      </div>
+    </div>
+
+    <div class="footer-actions">
+      <button id="clearBtn" class="btn">清除</button>
+      <button id="submitBtn" class="btn btn-primary" disabled>批改</button>
+    </div>
+    <div id="submitHint" class="success" style="display:none"></div>
+    <div id="loading" class="loading" style="display: none;">
+      <div class="spinner"></div>
+      <p id="loading-text">正在进行AI智能批改，请耐心等待...</p>
+      <div id="error-debug-info" style="display: none; margin-top: 20px; padding: 15px; background: #fff0f0; border: 1px solid #ffcdd2; border-radius: 4px; text-align: left; color: #d32f2f; font-family: monospace; white-space: pre-wrap; max-height: 300px; overflow-y: auto;"></div>
+    </div>
+  </div>
+
+  <!-- CloudBase Web SDK -->
+  <script src="/public/js/cloudbase.full.js"></script>
+  <script>
+    const OPTIONS = [
+      '小学记叙文（含散文、日记）',
+      '小学说明文（简单事物说明，如 “我的文具”“家乡的水果”）',
+      '小学议论文（简单观点议论，如 “要讲诚信”“坚持很重要”）',
+      '初中记叙文（含叙事散文）',
+      '初中说明文（复杂事物 / 事理说明，如 “智能手机的功能”“雨的形成”）',
+      '初中议论文（完整观点论证，如 “奋斗是青春的底色”“环保需从细节做起”）',
+    ];
+    const choices = document.getElementById('choices');
+    const chosenText = document.getElementById('chosenText');
+    const studentList = document.getElementById('studentList');
+    const addStudentBtn = document.getElementById('addStudentBtn');
+    const submitBtn = document.getElementById('submitBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const uploadError = document.getElementById('uploadError');
+    const submitHint = document.getElementById('submitHint');
+
+    // ========================================
+    // IndexedDB Storage Adapter
+    // ========================================
+    const CorrectionDB = {
+        dbName: 'CorrectionDB',
+        storeName: 'corrections',
+        version: 1,
+        
+        // 打开数据库
+        async openDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(this.dbName, this.version);
+                
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => resolve(request.result);
+                
+                request.onupgradeneeded = (event) => {
+                    const db = event.target.result;
+                    if (!db.objectStoreNames.contains(this.storeName)) {
+                        db.createObjectStore(this.storeName, { keyPath: 'id' });
+                    }
+                };
+            });
+        },
+        
+        // 保存批改数据
+        async save(data) {
+            try {
+                const db = await this.openDB();
+                const transaction = db.transaction([this.storeName], 'readwrite');
+                const store = transaction.objectStore(this.storeName);
+                
+                // 使用固定key存储批量数据
+                const record = {
+                    id: 'batchCorrectionData',
+                    data: data,
+                    timestamp: Date.now()
+                };
+                
+                return new Promise((resolve, reject) => {
+                    const request = store.put(record);
+                    request.onsuccess = () => {
+                        // ✅ Wait for transaction to complete
+                        transaction.oncomplete = () => resolve(true);
+                    };
+                    request.onerror = () => reject(request.error);
+                    transaction.onerror = () => reject(transaction.error);
+                });
+            } catch (error) {
+                console.error('IndexedDB save error:', error);
+                throw error;
+            }
+        },
+        
+        // 读取批改数据
+        async get() {
+            try {
+                const db = await this.openDB();
+                const transaction = db.transaction([this.storeName], 'readonly');
+                const store = transaction.objectStore(this.storeName);
+                
+                return new Promise((resolve, reject) => {
+                    const request = store.get('batchCorrectionData');
+                    request.onsuccess = () => {
+                        const result = request.result;
+                        resolve(result ? result.data : null);
+                    };
+                    request.onerror = () => reject(request.error);
+                });
+            } catch (error) {
+                console.error('IndexedDB get error:', error);
+                return null;
+            }
+        },
+        
+        // 清除数据
+        async clear() {
+            try {
+                const db = await this.openDB();
+                const transaction = db.transaction([this.storeName], 'readwrite');
+                const store = transaction.objectStore(this.storeName);
+                
+                return new Promise((resolve, reject) => {
+                    const request = store.delete('batchCorrectionData');
+                    request.onsuccess = () => resolve(true);
+                    request.onerror = () => reject(request.error);
+                });
+            } catch (error) {
+                console.error('IndexedDB clear error:', error);
+                return false;
+            }
+        }
+    };
+
+    // CloudBase Deployment Configuration
+    // Leave empty for local development (uses relative path)
+    // CloudBase will automatically map the root domain to the container
+    const API_BASE_URL = ''; 
+    
+    // Initialize CloudBase SDK
+    let app, auth;
+    try {
+        if (typeof cloudbase !== 'undefined') {
+            app = cloudbase.init({
+                env: 'cloud1-0gh78mpy39eccc0f', // Your Env ID
+                region: 'ap-shanghai' // Explicitly set region to avoid default lookup issues
+            });
+            auth = app.auth();
+        } else {
+            console.warn('CloudBase SDK not loaded. File upload may fail.');
+        }
+    } catch (e) {
+        console.error('Failed to init CloudBase SDK:', e);
+    }
+    
+    let selected = null;
+
+    let students = []; // Array of { id, name, images: [] }
+    let nextId = 1;
+
+    function renderChoices(){
+      choices.innerHTML = '';
+      OPTIONS.forEach((text, idx) => {
+        const el = document.createElement('div'); el.className = 'choice' + (selected === text ? ' selected' : '');
+        const t = document.createElement('div'); t.className = 'choice-title'; t.textContent = text;
+        const d = document.createElement('div'); d.className = 'choice-desc'; d.textContent = '点击选择该文体';
+        el.appendChild(t); el.appendChild(d);
+        el.onclick = () => { selected = text; localStorage.setItem('selectedStandard', selected); renderChoices(); chosenText.textContent = selected; validate(); };
+        choices.appendChild(el);
+      });
+    }
+
+    function createStudentRow(student) {
+        const row = document.createElement('div');
+        row.style.cssText = 'border:1px solid var(--border); border-radius:12px; padding:16px; margin-bottom:12px; background:#fff;';
+        
+        // Header line: Name input and Remove button
+        const header = document.createElement('div');
+        header.style.cssText = 'display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;';
+        
+        const nameInput = document.createElement('input');
+        nameInput.type = 'text';
+        nameInput.placeholder = '学生姓名 (可选)';
+        nameInput.value = student.name;
+        nameInput.style.cssText = 'border:1px solid var(--border); padding:8px 12px; border-radius:6px; width:200px;';
+        nameInput.oninput = (e) => { student.name = e.target.value; };
+        
+        const removeBtn = document.createElement('button');
+        removeBtn.textContent = '删除';
+        removeBtn.className = 'btn';
+        removeBtn.style.cssText = 'padding:6px 12px; font-size:12px; color:var(--danger); border-color:var(--border);';
+        removeBtn.onclick = () => { removeStudent(student.id); };
+        
+        header.appendChild(nameInput);
+        header.appendChild(removeBtn);
+        row.appendChild(header);
+        
+        // Upload Area
+        const uploadArea = document.createElement('div');
+        uploadArea.className = 'upload';
+        uploadArea.innerHTML = `拖拽图片到此或 <label style="color:#4f46e5; text-decoration: underline; cursor:pointer"><input type="file" accept="image/*" multiple style="display:none">点击选择</label>`;
+        
+        const fileInput = uploadArea.querySelector('input');
+        
+        // Drag & Drop
+        uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.classList.add('drag'); });
+        uploadArea.addEventListener('dragleave', e => { uploadArea.classList.remove('drag'); });
+        uploadArea.addEventListener('drop', e => { 
+            e.preventDefault(); 
+            uploadArea.classList.remove('drag'); 
+            addImagesToStudent(student, e.dataTransfer.files); 
+        });
+        fileInput.addEventListener('change', e => addImagesToStudent(student, e.target.files));
+        
+        row.appendChild(uploadArea);
+        
+        // Thumbs
+        const thumbsDiv = document.createElement('div');
+        thumbsDiv.className = 'thumbs';
+        
+        student.images.forEach((imgFile, idx) => {
+            const url = URL.createObjectURL(imgFile);
+            const box = document.createElement('div'); box.className = 'thumb';
+            const img = document.createElement('img'); img.src = url; box.appendChild(img);
+            const rm = document.createElement('button'); rm.className = 'remove'; rm.textContent = '×';
+            rm.onclick = () => { student.images.splice(idx, 1); renderStudents(); validate(); };
+            box.appendChild(rm);
+            thumbsDiv.appendChild(box);
+        });
+        
+        row.appendChild(thumbsDiv);
+        return row;
+    }
+
+    function renderStudents() {
+        studentList.innerHTML = '';
+        students.forEach(s => {
+            studentList.appendChild(createStudentRow(s));
+        });
+        
+        if (students.length >= 5) {
+            addStudentBtn.style.display = 'none';
+        } else {
+            addStudentBtn.style.display = 'block';
+        }
+    }
+
+    function addStudent() {
+        if (students.length >= 5) return;
+        students.push({ id: nextId++, name: '', images: [] });
+        renderStudents();
+        validate();
+    }
+
+    function removeStudent(id) {
+        students = students.filter(s => s.id !== id);
+        renderStudents();
+        validate();
+    }
+
+    function addImagesToStudent(student, files) {
+        const arr = Array.from(files || []);
+        for (const f of arr){ if (!f.type.startsWith('image/')) continue; student.images.push(f); }
+        if (student.images.length > 3) student.images = student.images.slice(0, 3);
+        renderStudents();
+        validate();
+    }
+
+    function validate(){ 
+        // Must select a standard
+        if (!selected) { submitBtn.disabled = true; return; }
+        // Must have at least one student
+        if (students.length === 0) { submitBtn.disabled = true; return; }
+        // Each student must have at least one image
+        const allHaveImages = students.every(s => s.images.length > 0);
+        submitBtn.disabled = !allHaveImages;
+        
+        if (!allHaveImages && students.length > 0) {
+            uploadError.style.display = 'block';
+            uploadError.textContent = '每个学生至少需要上传 1 张图片';
+        } else {
+            uploadError.style.display = 'none';
+        }
+    }
+
+    addStudentBtn.onclick = addStudent;
+    
+    clearBtn.onclick = () => { 
+        students = []; 
+        nextId = 1;
+        addStudent(); // Add one default empty student
+        renderStudents(); 
+        validate(); 
+        submitHint.style.display = 'none'; 
+    };
+
+    const debugPanel = document.getElementById('debug-log-panel');
+
+    function logDebug(msg, type = 'info') {
+        const div = document.createElement('div');
+        div.className = 'log-entry';
+        const time = new Date().toLocaleTimeString() + '.' + String(new Date().getMilliseconds()).padStart(3, '0');
+        const typeClass = type === 'error' ? 'log-error' : (type === 'heartbeat' ? 'log-heartbeat' : '');
+        div.innerHTML = `<span class="log-time">[${time}]</span><span class="${typeClass}">${msg}</span>`;
+        debugPanel.appendChild(div);
+        debugPanel.scrollTop = debugPanel.scrollHeight;
+        console.log(`[${time}] ${msg}`);
+    }
+
+    submitBtn.onclick = async () => {
+      submitBtn.disabled = true;
+      submitHint.className = 'success';
+      submitHint.style.display = 'block';
+      document.getElementById('error-debug-info').style.display = 'none';
+      document.getElementById('error-debug-info').textContent = '';
+      
+      // Show and clear debug panel
+      debugPanel.style.display = 'block';
+      debugPanel.innerHTML = '<div class="log-entry">=== 开始批改任务 ===</div>';
+      
+      const batchResults = [];
+      
+      try {
+          // Anonymous Login
+          if (auth && !auth.hasLoginState()) {
+              logDebug('正在登录云开发...');
+              await auth.signInAnonymously();
+              logDebug('登录成功');
+          }
+
+          submitHint.textContent = `正在并行批改 ${students.length} 位学生的作文，请关注下方实时日志...`;
+          
+          // 并发处理所有学生
+          // 用户确认并发数小于10，理论上不应报错。
+          // 之前的错误可能是偶发的网络波动，这里恢复全并发，但增加重试机制以提高稳定性。
+          console.log('🔍 开始处理的学生数量:', students.length);
+          console.log('🔍 学生列表:', students.map((s, i) => s.name || `学生${i+1}`));
+          const promises = students.map(async (s, index) => {
+              const sName = s.name || `学生 ${index + 1}`;
+              logDebug(`准备处理: ${sName}`);
+              
+              try {
+                  let fileIDs = [];
+                  let fallbackDataUrls = []; // Define here to capture fallbacks
+                  
+                  // Upload images to Cloud Storage via Async Proxy (Fixes timeout issues)
+                  try {
+                      // Step 1: Queue all uploads (returns immediately with uploadId)
+                      const uploadIds = await Promise.all(s.images.map(async (f, imgIdx) => {
+                          const sName = s.name || `学生 ${index + 1}`;
+                          logDebug(`[${sName}] 上传图片 ${imgIdx + 1}/${s.images.length}...`);
+                          
+                          const formData = new FormData();
+                          formData.append('file', f);
+                          
+                          const uploadResp = await fetch('/api/upload', {
+                              method: 'POST',
+                              body: formData
+                          });
+                          
+                          if (!uploadResp.ok) {
+                              const errText = await uploadResp.text();
+                              throw new Error(`Upload queue failed: ${uploadResp.status} - ${errText}`);
+                          }
+                          
+                          const uploadJson = await uploadResp.json();
+                          if (!uploadJson.uploadId) {
+                              throw new Error('Upload response missing uploadId');
+                          }
+                          
+                          logDebug(`[${sName}] 图片 ${imgIdx + 1} 已加入队列: ${uploadJson.uploadId}`);
+                          return uploadJson.uploadId;
+                      }));
+                      
+                      // Step 2: Poll for upload completion (with timeout)
+                      logDebug(`[${sName}] 等待上传完成...`);
+                      const uploadTimeout = 120000; // 2 minutes per upload
+                      
+                      fileIDs = await Promise.all(uploadIds.map(async (uploadId, imgIdx) => {
+                          const startPoll = Date.now();
+                          
+                          while (Date.now() - startPoll < uploadTimeout) {
+                              const statusResp = await fetch(`/api/upload/${uploadId}`);
+                              if (!statusResp.ok) {
+                                  throw new Error(`Failed to check upload status: ${statusResp.status}`);
+                              }
+                              
+                              const status = await statusResp.json();
+                              
+                              if (status.status === 'completed' && status.fileID) {
+                                  logDebug(`[${sName}] 图片 ${imgIdx + 1} 上传完成: ${status.fileID}`);
+                                  return status.fileID;
+                              } else if (status.status === 'failed') {
+                                  throw new Error(`Upload failed: ${status.error}`);
+                              }
+                              
+                              // Still pending, wait and retry
+                              await new Promise(resolve => setTimeout(resolve, 2000)); // Check every 2s
+                          }
+                          
+                          throw new Error(`Upload timeout after ${uploadTimeout/1000}s`);
+                      }));
+                      
+                      logDebug(`[${sName}] 图片上传完成，共 ${fileIDs.length} 张`);
+                  } catch (uploadErr) {
+                      logDebug(`[${sName}] 上传失败: ${uploadErr.message}`, 'error');
+                      throw uploadErr; 
+                  }
+                  
+                  // SDK Upload Logic Removed - We use Proxy exclusively now.
+
+
+                  const payload = { 
+                      choice: selected, 
+                      title: '', 
+                      studentName: sName, 
+                      fileIds: fileIDs, 
+                      imageDataUrls: fallbackDataUrls.length > 0 ? fallbackDataUrls : []
+                  };
+                  
+                  const apiUrl = API_BASE_URL ? (API_BASE_URL + '/api/correct') : '/api/correct';
+                  const startTime = Date.now();
+                  logDebug(`[${sName}] 发起请求...`);
+                  
+                  // Step 1: Submit Task (with retry)
+                  let taskId;
+                  for(let i=0; i<3; i++) {
+                      try {
+                          const resp = await fetch(apiUrl, { 
+                              method:'POST', 
+                              headers:{ 'Content-Type':'application/json' }, 
+                              body: JSON.stringify(payload) 
+                          });
+                          
+                          if (!resp.ok) {
+                              const errorText = await resp.text();
+                              throw new Error(`Status: ${resp.status}, Body: ${errorText.substring(0, 100)}`);
+                          }
+                          
+                          const json = await resp.json();
+                          taskId = json.taskId;
+                          break; // Success
+                      } catch(e) {
+                          if (i === 2) {
+                              console.error(`[${sName}] Submit final failure:`, e);
+                              logDebug(`[${sName}] 提交最终失败: ${e.message}`, 'error');
+                              throw e;
+                          }
+                          console.warn(`[${sName}] Submit failed, retrying (${i+1}/3)...`, e);
+                          logDebug(`[${sName}] 提交失败重试 (${i+1}/3): ${e.message}`, 'warn');
+                          await new Promise(r => setTimeout(r, 1000));
+                      }
+                  }
+                  
+                  logDebug(`[${sName}] 任务已提交，ID: ${taskId}`);
+                  
+                  // Step 2: Poll Status
+                  let result = null;
+                  
+                  await new Promise((resolve, reject) => {
+                      let lastLogIndex = 0;
+                      let errorCount = 0; // Track consecutive errors
+                      const pollInterval = setInterval(async () => {
+                          try {
+                              const statusUrl = API_BASE_URL ? (API_BASE_URL + `/api/task/${taskId}`) : `/api/task/${taskId}`;
+                              const statusResp = await fetch(statusUrl);
+                              if (!statusResp.ok) {
+                                  if (statusResp.status === 404) {
+                                      // 404 might be temporary if DB write is slow
+                                      console.warn('Task not found yet...');
+                                      errorCount++;
+                                  } else {
+                                      throw new Error(`Polling error: ${statusResp.status}`);
+                                  }
+                              } else {
+                                  errorCount = 0; // Reset error count on success
+                                  const taskData = await statusResp.json();
+                                  
+                                  if (taskData.logs && taskData.logs.length > lastLogIndex) {
+                                      const newLogs = taskData.logs.slice(lastLogIndex);
+                                      newLogs.forEach(msg => logDebug(`[${sName}][Server] ${msg}`));
+                                      lastLogIndex = taskData.logs.length;
+                                  }
+                                  
+                                  if (taskData.status === 'completed') {
+                                      clearInterval(pollInterval);
+                                      result = taskData.result;
+                                      resolve();
+                                  } else if (taskData.status === 'error') {
+                                      clearInterval(pollInterval);
+                                      reject(new Error(taskData.error));
+                                  }
+                              }
+                              
+                              if (errorCount > 20) { // Stop after ~100 seconds of consecutive errors
+                                  clearInterval(pollInterval);
+                                  reject(new Error('无法连接到服务器查询状态'));
+                              }
+
+                              // 10-minute timeout as requested
+                              if (Date.now() - startTime > 600000) { // 600000ms = 10 minutes
+                                  clearInterval(pollInterval);
+                                  reject(new Error('处理超时（10分钟）- 任务可能过于复杂'));
+                              }
+                          } catch (e) {
+                              console.error('Poll error:', e);
+                              errorCount++;
+                              if (errorCount > 20) {
+                                  clearInterval(pollInterval);
+                                  reject(new Error(`连接中断: ${e.message}`));
+                              }
+                          }
+                      }, 5000);
+                  });
+                  
+                  if (!result) throw new Error('未获取到结果');
+                  
+                  logDebug(`[${sName}] 任务完成，总耗时: ${(Date.now() - startTime) / 1000}s`);
+                  result.studentName = sName;
+                  logDebug(`[${sName}] 解析成功`, 'success');
+                  return result;
+
+              } catch (err) {
+                  logDebug(`[${sName}] 错误: ${err.message}`, 'error');
+                  throw new Error(`学生 ${sName} 失败: ${err.message}`);
+              }
+          });
+          
+          // 等待所有请求完成（无论成功失败）
+          console.log('🔍 Promise数量:', promises.length);
+          const results = await Promise.allSettled(promises);
+          console.log('🔍 Promise.allSettled结果数量:', results.length);
+          console.log('🔍 各Promise状态:', results.map((r, i) => `${i+1}: ${r.status}`));
+          
+          // 收集成功结果，报告失败错误
+          const errors = [];
+          results.forEach(r => {
+              if (r.status === 'fulfilled') {
+                  console.log('✅ 添加成功结果:', r.value.studentName || r.value['作者姓名']);
+                  batchResults.push(r.value);
+              } else {
+                  console.error('❌ 失败的Promise:', r.reason);
+                  errors.push(r.reason.message);
+              }
+          });
+          
+          console.log('🔍 最终batchResults数量:', batchResults.length);
+          console.log('🔍 batchResults内容:', batchResults.map(r => r.studentName || r['作者姓名']));
+
+
+          if (errors.length > 0) {
+              // 如果全部失败，抛出异常；如果部分失败，提示用户但展示成功的部分
+              if (batchResults.length === 0) {
+                  throw new Error('所有批改均失败:\n' + errors.join('\n'));
+              } else {
+                  alert(`部分批改失败 (${errors.length}个):\n` + errors.join('\n') + '\n\n即将展示成功的批改结果。');
+              }
+          }
+
+          if (batchResults.length > 0) {
+              // ✅ Clean data before storage: Remove imageDataUrls to reduce size
+              const cleanedResults = batchResults.map(result => {
+                  const cleaned = { ...result };
+                  delete cleaned.imageDataUrls; // Remove base64 images (not needed for HTML rendering)
+                  return cleaned;
+              });
+              
+              console.log('🔍 准备存储的数据:', cleanedResults);
+              console.log('🔍 数据数量:', cleanedResults.length);
+              console.log('🔍 每个学生姓名:', cleanedResults.map(r => r.studentName || r['作者姓名']));
+              
+              // ✅ Use IndexedDB instead of localStorage to avoid quota issues
+              try {
+                  await CorrectionDB.save(cleanedResults);
+                  console.log(`✅ 已存储 ${batchResults.length} 个批改结果到 IndexedDB`);
+                  submitHint.textContent = `完成 ${batchResults.length}/${students.length}，正在打开结果页…`;
+                  setTimeout(() => {
+                      window.location.href = './correction-template.html?mode=batch';
+                  }, 500);
+              } catch (saveError) {
+                  console.error('IndexedDB save failed:', saveError);
+                  // Fallback to localStorage with error handling
+                  try {
+                      localStorage.setItem('batchCorrectionData', JSON.stringify(cleanedResults));
+                      console.log('⚠️ Fallback: 已使用 localStorage 存储');
+                      submitHint.textContent = `完成 ${batchResults.length}/${students.length}，正在打开结果页…`;
+                      setTimeout(() => {
+                          window.location.href = './correction-template.html?mode=batch';
+                      }, 500);
+                  } catch (localStorageError) {
+                      throw new Error('存储失败：数据过大且 IndexedDB 不可用');
+                  }
+              }
+          }
+          
+      } catch (e) {
+        submitHint.className = 'error';
+        submitHint.style.display = 'block';
+        submitHint.textContent = '批改中断：' + e.message;
+        logDebug(`[全局] 批改中断: ${e.message}`, 'error');
+        console.error(e);
+        submitBtn.disabled = false;
+      }
+    };
+
+    // 初始化
+    selected = localStorage.getItem('selectedStandard') || null;
+    if (selected) chosenText.textContent = selected;
+    renderChoices();
+    addStudent(); // Start with one student
+
+  </script>
+</body>
+</html>

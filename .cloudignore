@@ -1,0 +1,33 @@
+# CloudBase Ignore File - Strict Mode
+# Ignore EVERYTHING by default
+*
+
+# Allow ONLY these specific files/folders
+!server.js
+!package.json
+!package-lock.json
+!Dockerfile
+!.dockerignore
+!requirements.txt
+!templates/
+!templates/**
+!public/
+!public/**
+!src/
+!src/**
+
+# Explicitly ignore heavy/garbage folders again just in case
+node_modules/
+.git/
+.trae/
+cloudbase_deploy/
+deploy_package/
+data/
+temp_uploads/
+作文测试/
+*.zip
+*.docx
+*.md
+test_*.js
+mock_server.js
+.env*

@@ -1,0 +1,29 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "请您提供具体的作文文本内容，以便我按照要求完成作文批改并输出标准JSON格式的结果。目前仅收到\"Test content\"，缺乏可批改的作文原文，无法进行错别字标识、好句子/不好句子标注及评分等操作。请补充完整的作文内容后再次提交，谢谢！",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1767750895,
+  "id": "021767750888595571e879a7e0eb1247cfcaaab487786a1da130a",
+  "model": "doubao-seed-1-6-251015",
+  "service_tier": "default",
+  "object": "chat.completion",
+  "usage": {
+    "completion_tokens": 215,
+    "prompt_tokens": 1257,
+    "total_tokens": 1472,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 147
+    }
+  }
+}

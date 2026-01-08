@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>作文批改结果</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="/public/js/echarts.min.js"></script>
+  <style>
+    :root { --bg:#f7f8fa; --card:#ffffff; --text:#1f2d3d; --muted:#6b7280; --accent:#4f46e5; --accent-2:#14b8a6; --accent-3:#ef4444; --border:#e5e7eb; --good:#10b981; --warn:#f59e0b; }
+    html,body { background: var(--bg); color: var(--text); font-family: 'Noto Sans SC', system-ui, -apple-system, 'Segoe UI', Roboto; }
+    .page { max-width: 1440px; margin: 24px auto; padding: 0 16px; }
+    .header { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color:#fff; border-radius: 16px; padding: 24px; box-shadow: 0 8px 24px rgba(79,70,229,.2); }
+    .title { font-size: 28px; font-weight: 700; letter-spacing: .5px; }
+    .meta { margin-top: 8px; display:flex; gap:16px; flex-wrap:wrap; }
+    .meta-item { background: rgba(255,255,255,.15); padding: 6px 10px; border-radius: 999px; font-size: 13px; }
+    .actions { display:flex; gap:10px; margin-top: 14px; }
+    .btn { appearance:none; border:1px solid rgba(255,255,255,.3); background: rgba(255,255,255,.15); color:#fff; border-radius: 999px; padding:10px 14px; font-size:14px; cursor:pointer; }
+    .btn:hover { background: rgba(255,255,255,.25); }
+    
+    /* 2列布局 */
+    .grid { display:grid; grid-template-columns: 3fr 2fr; gap: 24px; margin-top: 20px; }
+    
+    .card { background: var(--card); border-radius: 16px; box-shadow: 0 6px 18px rgba(0,0,0,.06); border:1px solid var(--border); display: flex; flex-direction: column; }
+    .card h3 { margin: 0; padding: 16px 20px; font-size: 18px; border-bottom:1px solid var(--border); }
+    .card-body { padding: 18px 20px; flex: 1; }
+    
+    /* 左侧原文样式 */
+    .orig { line-height: 2.2; font-size: 18px; font-family: 'Noto Serif SC', serif; white-space: pre-wrap; }
+    .orig .title-main { text-align: center; font-size: 24px; font-weight: 700; margin: 10px 0 16px; }
+    .orig .title-sub { text-align: center; font-size: 18px; color: var(--muted); margin: 0 0 16px; }
+    .orig p { margin: 0 0 16px; text-indent: 2em; }
+    
+    /* 标记样式 */
+    /* 错别字：红圈 + 绿色正确字 */
+    .mark-wrong { border: 2px solid #ef4444; border-radius: 50%; padding: 2px 4px; color: #ef4444; font-weight: 500; margin: 0 2px; }
+    .mark-wrong-correct { color: #10b981; font-weight: 700; font-size: 0.9em; margin-right: 2px; }
+    
+    /* 好句子：绿色波浪线 + 绿色理由 */
+    .mark-good { text-decoration: underline; text-decoration-style: wavy; text-decoration-color: #10b981; text-decoration-thickness: 2px; text-underline-offset: 6px; color: inherit; }
+    .mark-good-reason { color: #10b981; font-size: 0.9em; font-weight: 500; margin-left: 4px; }
+    
+    /* 不好句子：红色波浪线 + 红色问题 + 蓝色建议 */
+    .mark-bad { text-decoration: underline; text-decoration-style: wavy; text-decoration-color: #ef4444; text-decoration-thickness: 2px; text-underline-offset: 6px; color: inherit; }
+    .mark-bad-reason { color: #ef4444; font-size: 0.9em; font-weight: 500; margin-left: 4px; }
+    .mark-bad-suggest { color: #2563eb; font-size: 0.9em; font-weight: 500; margin-left: 4px; }
+
+    /* 右侧布局 */
+    .right-panel { display: flex; flex-direction: column; gap: 20px; }
+    .score-box { display: none; }
+    
+    .chart { width: 100%; height: 360px; }
+    
+    .dims { display:grid; grid-template-columns: 1fr; gap: 12px; }
+    .dim-item { border:1px solid var(--border); border-radius: 12px; padding: 12px; overflow: hidden; background: #fafafa; }
+    .dim-hd { display:flex; justify-content: space-between; font-weight: 600; font-size: 15px; margin-bottom: 6px; }
+    .dim-score { color: var(--accent); background: #e0e7ff; padding: 2px 8px; border-radius: 6px; font-size: 14px; }
+    .dim-reason { color: #4b5563; font-size: 15px; line-height: 1.7; }
+    
+    .section { margin-top: 10px; }
+    .section h4 { margin: 0 0 10px; font-size: 16px; color: var(--text); border-left: 4px solid var(--accent); padding-left: 10px; }
+    .overall { background: #fdf4ff; border: 1px solid #f0abfc; border-radius: 12px; padding: 20px; color: #0044cc; line-height: 1.8; font-size: 16px; }
+    
+    @media (max-width: 1000px) { .grid { grid-template-columns: 1fr; } }
+    @media print {
+      body { background: #fff; }
+      .page { max-width: unset; margin: 0; padding: 0; }
+      .header, .actions { display: none; }
+      .card { box-shadow: none; border: none; }
+      .grid { display: block; }
+      .card-body { padding: 0; margin-bottom: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="header">
+      <div class="title" id="hdrTitle"></div>
+      <div class="meta">
+        <div class="meta-item">文体：<span id="hdrGenre"></span></div>
+        <div class="meta-item">学生：<span id="hdrStudent"></span></div>
+        <div class="meta-item">时间：<span id="hdrTime"></span></div>
+      </div>
+      <div class="actions">
+        <button class="btn" onclick="window.print()">打印/导出PDF</button>
+        <button class="btn" onclick="downloadHTML()">下载HTML</button>
+      </div>
+    </div>
+
+    <div class="grid">
+      <!-- 左侧：原文与批注 -->
+      <div class="card">
+        <h3>原文与批注</h3>
+        <div class="card-body">
+          <div class="orig" id="recognizedText"></div>
+        </div>
+      </div>
+
+      <!-- 右侧：评分与分析 -->
+      <div class="right-panel">
+        <div class="card">
+          <h3>评分概况</h3>
+          <div class="card-body">
+            <div id="radar" class="chart"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>维度得分详情</h3>
+          <div class="card-body">
+            <div class="dims" id="dims"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>综合评价</h3>
+          <div class="card-body">
+            <div class="overall" id="overallComment"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let DATA = {
+      title: "童年的发现——眼泪的味道",
+      genre: "小学记叙文",
+      studentName: "",
+      createdAt: "2025/12/16 17:05:01",
+      recognizedText: "小时候，幼稚又天真的我发现了眼泪是咸的。\n\n为了看眼泪是什么味道，我还特意在我哭的时候[偿_尝]了一下眼泪。@为什么我会突然想看眼泪是什么味道呢？也许你会问这个问题吧！那我就告诉你吧！_句子啰嗦重复，设问冗余_可以简化为“你可能会好奇，我为什么突然想知道眼泪的味道呢？让我来告诉你吧！”@记得有一天，我去书城去看书。@我看了一本作文书上写的，内容是这样的：作者因为有一天生病不能上学，但又怕学习跟不上。突然，他灵机一动，他想到家里的电脑可以教他。_句式重复，表达拖沓_修改为“我在一本作文书上看到：有位作者生病没法上学，怕落下功课，突然灵机一动——家里的电脑可以帮他学习呀！”@其中在电脑上有一到题目，就是叫他用“甜甜的”来造句。他写他高兴得流下了甜甜的眼泪。电脑上显示了叫他尝他自己的眼泪是不是甜的这句话。我看完后，就把这篇文章深深[的_地]记了起来。\n\n回到家，我就跑到房间里哭。但我怎么也哭不出来。可以看出，我是那么的想知道眼泪是不是甜的。@我为我还故意做了许多的傻事，好比让爸爸妈妈骂我。终于一个大巴掌打了过来。为此我就连忙问，你笑起来，我让爸爸妈妈妈妈巧妙的办法让我成功的哭了。_逻辑混乱，成分残缺_修改为“我还故意做了好多傻事，比如惹爸爸妈妈生气。终于，爸爸的大巴掌落了下来，我的脸火辣辣的。不知道是不是打得太重，我忍不住哭了——爸爸妈妈这‘意外’的办法居然让我成功流泪啦！”@{情不自禁的一颗颗金豆豆从我眼睛里掉了下来_把眼泪比作金豆豆，形象写出眼泪滚落的样子，充满童趣}。我忙用手接住它们说：“别掉了，你们是我好辛苦的来的。不可以掉。”{我忙用手接住它们说：“别掉了，你们是我好辛苦的来的。不可以掉。”_通过孩子的语言和动作，展现天真可爱的性格，真实生动}。于是我用舌头尝了尝。“哎呀，眼泪不是甜的，是咸的。”我生气地说。枉我还费尽心思，没想到它竟然是咸的。\n\n@直到现在，我想这件事起来就会笑得前赴后仰。_语序颠倒，表达不通顺_修改为“直到现在，我想起这件事就会笑得前仰后合。”@如果你也想笑，你就笑吧！不过，你的笑声可别让我听到。\n\n从这里我明白了世界上的事都需要自己去亲身[休_体]验，才会了解。",
+      totalScore: 28,
+      dimensions: [
+        { name: "内容立意", score: 6, reason: "本文主题与题目《童年的发现——眼泪的味道》高度匹配，全文围绕“童年发现眼泪是咸的”展开。核心事件清晰：作者因作文书里“眼泪是甜的”说法产生好奇，特意惹爸妈生气哭出来尝味道，发现眼泪是咸的，最后明白要亲身实践的道理。事件有核心亮点：通过自己的亲身尝试，得出“世界上的事都需要自己去亲身[休_体]验”的感悟，不仅有趣，还蕴含成长的道理，符合评分6分的标准（扣题、事件清晰且有核心亮点）。" },
+        { name: "结构框架", score: 6, reason: "本文共5段，结构完整，有开头（点题童年发现眼泪味道）、中间（详细写尝试的原因、过程）、结尾（总结道理）。过渡自然：用“为了”引出尝试目的，“记得有一天”衔接好奇起因，“回到家”过渡到具体行动，“直到现在”转向回忆感受，“从这里”引出感悟。主次分明：中间段落详细描述“故意惹爸妈生气哭出来尝眼泪”的过程，占全文大部分篇幅，开头和结尾简洁点题，符合评分6分的标准（3-4段以上、过渡自然、主次分明）。" },
+        { name: "素材运用", score: 6, reason: "素材真实，均为小学生生活常见场景：如去书城看书、惹爸妈生气哭、好奇尝东西等。细节丰富：有动作细节“我忙用手接住它们”“用舌头尝了尝”，比喻细节“一颗颗金豆豆从我眼睛里掉了下来”，感受细节“脸上火辣辣的”，语言细节“别掉了，你们是我好辛苦的来的”。这些细节让故事生动，充满童趣，符合评分6分的标准（素材真实、含2个以上细节描写）。" },
+        { name: "语言表达", score: 4, reason: "病句方面，有“直到现在，我想这件事起来就会笑得前赴后仰”（语序颠倒）、“我为我还故意做了许多的傻事...让我成功的哭了”（逻辑混乱）等约2句，未超3句；修辞有1处小学常见比喻（眼泪比作金豆豆）；错别字有“偿_尝”“的_地”“休_体”共3个，未超3个；标点基本正确。符合评分4分的标准（病句≤3、1处修辞、错别字≤3、标点正确）。" },
+        { name: "情感表达", score: 6, reason: "情感真实自然，基于亲身经历流露。有直接情感词：如发现眼泪是咸的时“生气地说”，回忆此事时“笑得前赴后仰”。细节传情：“我忙用手接住它们说：‘别掉了，你们是我好辛苦的来的’”写出孩子对“辛苦得来”的眼泪的珍惜；“直到现在，想起这件事就笑”写出回忆的快乐。情感与事件逻辑一致：好奇→努力尝试→失望→回忆快乐，符合评分6分的标准（情感真实、有直接词+细节传情、逻辑一致）。" }
+      ],
+      overallComment: "你的作文像一个装满童趣的小盒子，打开就让人忍不住笑！亮点超多：把眼泪比作金豆豆，这个比喻太可爱啦，一下子就让人看到你掉眼泪的样子；你写的细节特别真实，比如“用手接住眼泪”“脸上火辣辣的”，让我仿佛跟着你一起经历了这件傻事。最后你明白的道理也很棒，告诉我们要亲自去试才能知道真相。不过有些句子可以更通顺哦，比如“想这件事起来”改成“想起这件事”就更好啦。继续加油，你的文字充满天真，一定能写出更多好玩的童年故事！"
+    };
+
+    function downloadHTML(){ const blob = new Blob([document.documentElement.outerHTML], { type: 'text/html' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${(DATA.studentName||'学生')}-${(DATA.title||'批改结果')}.html`; a.click(); }
+
+    function fillHeader(){
+      const title = (DATA.title && DATA.title.trim()) || '作文批改结果';
+      const genre = (DATA.genre && DATA.genre.trim()) || (localStorage.getItem('selectedStandard')||'未提供');
+      const student = (DATA.studentName||'未提供');
+      const when = DATA.createdAt || new Date().toLocaleString('zh-CN', { hour12: false });
+      
+      document.getElementById('hdrTitle').textContent = title;
+      document.getElementById('hdrGenre').textContent = genre;
+      document.getElementById('hdrStudent').textContent = student;
+      document.getElementById('hdrTime').textContent = when;
+      
+      document.getElementById('overallComment').textContent = DATA.overallComment || '暂无评价';
+    }
+
+    function escapeHtml(str){ return String(str).replace(/[&<>]/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[s])); }
+
+    function annotateText(text) {
+      if (!text) return '';
+      let html = escapeHtml(text);
+      
+      // 1. 解析不好的句子 @句子_问题_建议@
+      // 必须支持句子中包含 [错别字_正字] 的情况，即句子中可能含有下划线
+      // 采用从后向前查找分隔符的策略
+      html = html.replace(/@([^@]+)@/g, (match, content) => {
+         // 如果内容以 _ 结尾，则去除该下划线
+         if (content.endsWith('_')) {
+            content = content.slice(0, -1);
+         }
+         
+         // 寻找最后一个 _ 作为建议的分隔
+         const lastUnderscore = content.lastIndexOf('_');
+         if (lastUnderscore === -1) return match; // 格式错误
+         
+         const suggestion = content.substring(lastUnderscore + 1);
+         const rest = content.substring(0, lastUnderscore);
+         
+         // 寻找倒数第二个 _ 作为问题的分隔
+         const secondLastUnderscore = rest.lastIndexOf('_');
+         if (secondLastUnderscore === -1) return match; // 格式错误
+         
+         const problem = rest.substring(secondLastUnderscore + 1);
+         const sentence = rest.substring(0, secondLastUnderscore);
+         
+         return `<span class="mark-bad">${sentence}</span><span class="mark-bad-reason">（问题：${problem}）</span><span class="mark-bad-suggest">（建议：${suggestion}）</span>`;
+      });
+
+      // 2. 解析好的句子 {句子_好在哪里}
+      html = html.replace(/\{([^}]+)\}/g, (match, content) => {
+        // 如果内容以 _ 结尾，则去除该下划线
+        if (content.endsWith('_')) {
+           content = content.slice(0, -1);
+        }
+        
+        const lastSep = content.lastIndexOf('_'); 
+        if (lastSep === -1) return match;
+        
+        const sentence = content.substring(0, lastSep);
+        const reason = content.substring(lastSep + 1);
+        
+        return `<span class="mark-good">${sentence}</span><span class="mark-good-reason">（${reason}）</span>`;
+      });
+
+      // 3. 解析错别字 [错字_正字]
+      html = html.replace(/\[([^\]_]+)_([^\]]+)\]/g, (match, wrong, correct) => {
+        return `<span class="mark-wrong">${wrong}</span><span class="mark-wrong-correct">(${correct})</span>`;
+      });
+
+      return html;
+    }
+
+    function fillOrig(){
+      const el = document.getElementById('recognizedText'); if (!el) return;
+      el.innerHTML = '';
+      const lines = (DATA.recognizedText || '').split(/\r?\n/).map(l => l.trim());
+      const nonEmpty = lines.filter(l => l.length > 0);
+      
+      // 尝试识别标题
+      let titleLine = '';
+      if (nonEmpty.length && nonEmpty[0].length < 30 && !nonEmpty[0].includes('。')) {
+          titleLine = nonEmpty[0];
+      }
+      
+      let startIdx = 0;
+      if (titleLine) {
+         const main = document.createElement('div'); main.className = 'title-main'; main.textContent = titleLine; el.appendChild(main);
+         startIdx = lines.indexOf(titleLine) + 1;
+      }
+      
+      for (let i = startIdx; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+        const p = document.createElement('p'); 
+        p.innerHTML = annotateText(line); 
+        el.appendChild(p);
+      }
+    }
+
+    function fillDims(){
+      const container = document.getElementById('dims');
+      container.innerHTML = '';
+      const textColors = ['#ef4444','#10b981','#6366f1','#0ea5e9','#f59e0b','#ec4899'];
+      
+      DATA.dimensions.forEach((d, idx) => {
+        const color = textColors[idx % textColors.length];
+        const item = document.createElement('div'); item.className='dim-item';
+        
+        // 设置淡色背景：利用 hex 转 rgba，透明度 0.08
+        // 简单处理：将 hex 转换为 rgba
+        let r=0,g=0,b=0;
+        if(color.length === 7) {
+            r = parseInt(color.slice(1,3), 16);
+            g = parseInt(color.slice(3,5), 16);
+            b = parseInt(color.slice(5,7), 16);
+        }
+        item.style.backgroundColor = `rgba(${r},${g},${b},0.06)`;
+        item.style.borderColor = `rgba(${r},${g},${b},0.2)`;
+
+        const hd = document.createElement('div'); hd.className='dim-hd';
+        const left = document.createElement('span'); left.textContent = d.name;
+        left.style.color = color; // 标题也用该颜色
+
+        const right = document.createElement('span'); right.className='dim-score'; right.textContent = d.score + '分';
+        // right.style.color = color; // 分数颜色保持默认 accent 或者也用该颜色？保持默认较清晰，或者统一
+        right.style.backgroundColor = `rgba(${r},${g},${b},0.15)`; // 分数背景也跟随
+        right.style.color = color;
+
+        hd.appendChild(left); hd.appendChild(right);
+        const reason = document.createElement('div'); reason.className='dim-reason'; reason.textContent = d.reason;
+        item.appendChild(hd); item.appendChild(reason); container.appendChild(item);
+      });
+    }
+
+    function renderRadar(){
+      const dom = document.getElementById('radar'); 
+      if (!dom || !DATA.dimensions.length) return;
+      const chart = echarts.init(dom);
+      
+      // 满分固定为 6
+      const maxScore = 6;
+      
+      const chartData = DATA.dimensions.map(d => parseInt(d.score));
+      const indicators = DATA.dimensions.map(d => ({ name: d.name, max: maxScore }));
+      
+      const textColors = ['#ef4444','#10b981','#6366f1','#0ea5e9','#f59e0b','#ec4899'];
+      const rich = {};
+      const nameToStyle = new Map();
+      DATA.dimensions.forEach((d,i) => {
+        const key = `c${i}`;
+        nameToStyle.set(d.name, key);
+        rich[key] = {
+             color: textColors[i % textColors.length],
+             fontSize: 18,
+             fontWeight: '700',
+             fontFamily: 'Microsoft YaHei, 微软雅黑, Noto Sans SC, system-ui'
+           };
+         });
+         
+         chart.setOption({
+            title: {
+                text: '{score|' + (DATA.totalScore||0) + '分}',
+                left: 'center',
+                top: 'center', // 使用 center 自动垂直居中，或者手动微调如 '45%'
+                textStyle: {
+                    rich: {
+                        score: {
+                            color: '#d97706',
+                            fontSize: 36,
+                            fontWeight: 'bold',
+                            textBorderColor: '#fff',
+                            textBorderWidth: 3
+                        }
+                    }
+                }
+            },
+            tooltip: { show: false }, // 移除鼠标互动
+            radar: {
+              center: ['50%', '50%'], 
+              radius: '62%', 
+              indicator: indicators,
+              splitNumber: 6, 
+              name: {
+                formatter: function (name) { 
+                    const k = nameToStyle.get(name) || 'c0'; 
+                    // 查找对应的分数
+                    const dim = DATA.dimensions.find(d => d.name === name);
+                    const score = dim ? dim.score : '';
+                    return `{${k}|${name}}\n{score|${score}分}`; 
+                },
+                rich: {
+                    ...rich,
+                    score: {
+                        color: '#6b7280',
+                        fontSize: 17,
+                        fontWeight: 'bold',
+                        padding: [6, 0, 0, 0], // 增大间距
+                        align: 'center'
+                    }
+                },
+                textStyle: { fontSize: 18 }
+              },
+              nameGap: 18,
+              splitLine: { lineStyle: { color: ['#e5e7eb'] } },
+              splitArea: { areaStyle: { color: ['#fafafa','#fff'] } }
+            },
+            series: [{
+              type: 'radar',
+              data: [{
+                value: chartData,
+                // name: '维度得分', // 移除 tooltip 需要的 name
+                areaStyle: { color: 'rgba(79, 70, 229, 0.25)' },
+                lineStyle: { color: '#ef4444', width: 2 }, // 还原原来的红色线条
+                symbol: 'circle',
+                symbolSize: 3, // 还原原来的点大小
+                itemStyle: { color: '#ef4444' }, // 还原原来的点颜色
+                label: { show: false }
+              }]
+            }]
+          });
+      
+      window.addEventListener('resize', () => chart.resize());
+    }
+
+    fillHeader(); fillOrig(); fillDims(); renderRadar();
+  </script>
+</body>
+</html>

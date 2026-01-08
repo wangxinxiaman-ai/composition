@@ -1,0 +1,29 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "请您提供需要批改的完整作文内容，以便我按照要求进行错别字标识、好句子与不好句子的标注，以及后续的评分和综合评价。",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1767752451,
+  "id": "021767752448596da22f1f1183cde111ae4437ca04d4ff4a7a22f",
+  "model": "doubao-seed-1-6-251015",
+  "service_tier": "default",
+  "object": "chat.completion",
+  "usage": {
+    "completion_tokens": 109,
+    "prompt_tokens": 1256,
+    "total_tokens": 1365,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 75
+    }
+  }
+}

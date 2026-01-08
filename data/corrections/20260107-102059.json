@@ -1,0 +1,12 @@
+{
+  "error": "Invalid JSON from model",
+  "raw_text": "请您提供需要批改的完整作文内容，以便我按照要求进行错别字标识、好句子与不好句子的标注，以及后续的评分和综合评价。",
+  "image_url": [],
+  "saved_file": "J:\\AI作文批改\\data\\corrections\\20260107-102059.json",
+  "saved_files": {
+    "parsed": "J:\\AI作文批改\\data\\corrections\\20260107-102059.json",
+    "content": "J:\\AI作文批改\\data\\corrections\\20260107-102059.content.txt",
+    "response": "J:\\AI作文批改\\data\\corrections\\20260107-102059.response.json",
+    "prompt": "J:\\AI作文批改\\data\\corrections\\20260107-102059.prompt.txt"
+  }
+}

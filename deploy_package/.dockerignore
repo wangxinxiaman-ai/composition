@@ -1,0 +1,6 @@
+node_modules
+.env.local
+.git
+temp_uploads
+data
+.DS_Store
