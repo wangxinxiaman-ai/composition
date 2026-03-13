@@ -17,71 +17,88 @@ const tcbConfig = {
     env: process.env.TCB_ENV || 'cloud1-0gh78mpy39eccc0f'
 };
 
-// Always use explicit credentials if provided
-if (process.env.TCB_SECRET_ID && process.env.TCB_SECRET_KEY) {
-    tcbConfig.secretId = process.env.TCB_SECRET_ID;
-    tcbConfig.secretKey = process.env.TCB_SECRET_KEY;
-    console.log('✅ Initializing CloudBase with explicit credentials');
-} else if (process.env.TENCENTCLOUD_RUNENV) {
-    console.log('✅ Initializing CloudBase with container authorization (CloudRun mode)');
-} else {
-    console.warn('⚠️  No credentials provided, operations may fail');
-}
-
-console.log('CloudBase env:', tcbConfig.env);
-console.log('Environment variables:', {
-    TENCENTCLOUD_RUNENV: process.env.TENCENTCLOUD_RUNENV,
-    TCB_ENV: process.env.TCB_ENV,
-    hasSecretId: !!process.env.TCB_SECRET_ID,
-    hasSecretKey: !!process.env.TCB_SECRET_KEY
-});
-
-const tcbApp = tcb.init(tcbConfig);
-
-// Mock DB for Local Development without Credentials
+let tcbApp;
 let db;
 let _;
 let isLocalMock = false;
 
-try {
-    db = tcbApp.database();
-    _ = db.command;
-    console.log('✅ Connected to CloudBase Database');
+// Check if we have valid credentials
+const hasCredentials = process.env.TCB_SECRET_ID && process.env.TCB_SECRET_KEY;
+const isCloudRun = process.env.TENCENTCLOUD_RUNENV;
 
-
-    // Self-Healing: Ensure collection exists - DISABLED to avoid cold start timeout
-    // Collection 'correction_tasks' already exists in CloudBase console
-    // (async () => {
-    //     try {
-    //         console.log('Attempting to ensure collection "correction_tasks" exists...');
-    //         if (db.createCollection) {
-    //             await db.createCollection('correction_tasks');
-    //             console.log('✅ Collection "correction_tasks" created successfully.');
-    //         } else {
-    //             console.warn('⚠️ db.createCollection is not available in this SDK version.');
-    //         }
-    //     } catch (e) {
-    //         if (e.code === 'COLLECTION_EXIST' || e.message.includes('exist')) {
-    //             console.log('✅ Collection "correction_tasks" already exists.');
-    //         } else {
-    //             console.warn('⚠️ Failed to create collection (might be permission or SDK limitation):', e.message);
-    //         }
-    //     }
-    // })();
-    console.log('✅ Assuming collection "correction_tasks" exists (created via console)');
-
-} catch (e) {
-    console.warn('⚠️  No CloudBase credentials found. Using In-Memory Mock Database for local testing.');
-    isLocalMock = true;
+if (hasCredentials || isCloudRun) {
+    if (hasCredentials) {
+        tcbConfig.secretId = process.env.TCB_SECRET_ID;
+        tcbConfig.secretKey = process.env.TCB_SECRET_KEY;
+        console.log('✅ Initializing CloudBase with explicit credentials');
+    } else {
+        console.log('✅ Initializing CloudBase with container authorization (CloudRun mode)');
+    }
     
-    // In-Memory Store
+    tcbApp = tcb.init(tcbConfig);
+    try {
+        db = tcbApp.database();
+        _ = db.command;
+        console.log('✅ Connected to CloudBase Database');
+    } catch (e) {
+        console.warn('⚠️  Failed to connect to CloudBase Database, falling back to local mock');
+        initLocalMock();
+    }
+} else {
+    console.warn('⚠️  No credentials provided. Starting in LOCAL MOCK MODE.');
+    initLocalMock();
+}
+
+function initLocalMock() {
+    isLocalMock = true;
+    const mockStorageDir = path.join(__dirname, 'temp_uploads', 'mock_cloud');
+    if (!fs.existsSync(mockStorageDir)) {
+        try { fs.mkdirSync(mockStorageDir, { recursive: true }); } catch(e) {}
+    }
+
+    // Mock DB Store
     const mockStore = new Map();
     
+    // Mock TCB App Interface
+    tcbApp = {
+        uploadFile: async ({ cloudPath, fileContent }) => {
+            const fileName = path.basename(cloudPath);
+            // Replace / with _ to simulate flat structure or just use name
+            const safeName = cloudPath.replace(/\//g, '_');
+            const destPath = path.join(mockStorageDir, safeName);
+            fs.writeFileSync(destPath, fileContent);
+            console.log(`[Mock Cloud] Uploaded: ${destPath}`);
+            return { fileID: `cloud://mock/${safeName}` };
+        },
+        downloadFile: async ({ fileID }) => {
+            const fileName = fileID.replace('cloud://mock/', '');
+            const srcPath = path.join(mockStorageDir, fileName);
+            if (!fs.existsSync(srcPath)) {
+                throw new Error(`File not found: ${srcPath}`);
+            }
+            console.log(`[Mock Cloud] Downloaded: ${srcPath}`);
+            return { fileContent: fs.readFileSync(srcPath) };
+        },
+        deleteFile: async ({ fileList }) => {
+            let deleted = 0;
+            for (const fileID of fileList) {
+                const fileName = fileID.replace('cloud://mock/', '');
+                const filePath = path.join(mockStorageDir, fileName);
+                if (fs.existsSync(filePath)) {
+                    fs.unlinkSync(filePath);
+                    deleted++;
+                }
+            }
+            return { deleted };
+        },
+        database: () => db
+    };
+
     // Mock DB Interface
     db = {
         collection: (name) => ({
             add: async (data) => {
-                const id = Date.now().toString();
+                const id = Date.now().toString() + Math.random().toString(36).substr(2, 5);
                 mockStore.set(id, { ...data, _id: id });
                 return { id };
             },
@@ -89,31 +106,55 @@ try {
                 set: async (data) => { mockStore.set(id, { ...data, _id: id }); },
                 update: async (data) => {
                     const existing = mockStore.get(id) || {};
-                    // Handle _.push command mock
                     for (const key in data) {
                         if (data[key] && data[key].__op === 'push') {
                             const arr = existing[key] || [];
                             existing[key] = [...arr, ...data[key].values];
+                        } else if (data[key] && typeof data[key] === 'object' && !Array.isArray(data[key])) {
+                             // Deep merge for nested objects like 'result'
+                             existing[key] = { ...existing[key], ...data[key] };
                         } else {
                             existing[key] = data[key];
                         }
                     }
                     mockStore.set(id, existing);
                 },
-                get: async () => ({ data: [mockStore.get(id)] }),
+                get: async () => ({ data: [mockStore.get(id)].filter(x => x) }), // filter undefined
                 remove: async () => { mockStore.delete(id); }
             }),
-            where: () => ({
-                remove: async () => {} // Mock cleanup
+            where: (query) => ({
+                remove: async () => {
+                    // Simple mock for cleanup based on startTime
+                    if (query && query.startTime && query.startTime.__op === 'lt') {
+                         const threshold = query.startTime.val; // Accessing internal mock structure
+                         for (const [key, val] of mockStore.entries()) {
+                             if (val.startTime < threshold) mockStore.delete(key);
+                         }
+                    }
+                },
+                get: async () => {
+                    return { data: [] }; // Mock empty result for other queries
+                }
             })
         }),
         command: {
             push: (vals) => ({ __op: 'push', values: vals }),
-            lt: () => ({})
+            lt: (val) => ({ __op: 'lt', val }),
+            set: (val) => val // simple pass-through for set command
         }
     };
     _ = db.command;
+    console.log('✅ Local Mock Environment Initialized');
 }
+
+console.log('CloudBase env:', tcbConfig.env);
+console.log('Environment variables:', {
+    TENCENTCLOUD_RUNENV: process.env.TENCENTCLOUD_RUNENV,
+    TCB_ENV: process.env.TCB_ENV,
+    hasSecretId: !!process.env.TCB_SECRET_ID,
+    hasSecretKey: !!process.env.TCB_SECRET_KEY,
+    mode: isLocalMock ? 'LOCAL MOCK' : 'CLOUD'
+});
 
 // Load .env.local manually since we don't have dotenv
 try {
