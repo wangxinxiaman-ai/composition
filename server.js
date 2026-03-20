@@ -817,19 +817,22 @@ async function runTask(taskId, body) {
                 await log(`图片 ${i+1}: 文字提取完成 (共 ${currentOcrText ? currentOcrText.length : 0} 字)`);
                 
                 if (currentOcrText) {
-                    // 过滤掉作文纸常见的孤立页眉，如 "月日"、"月口"、"月  日"、"月口月口" 等
+                    // 1. 过滤掉整行都是孤立页眉的情况
                     currentOcrText = currentOcrText.split('\n').filter(line => {
-                        const trimmed = line.trim().replace(/\s+/g, ''); // 去除所有空白字符
-                        // 匹配纯粹由这些干扰词组成的行（可重复）
+                        const trimmed = line.trim().replace(/\s+/g, ''); 
                         if (/^(月|日|口|年)+$/.test(trimmed) && trimmed.length <= 6) {
-                            return false; // 过滤掉
+                            return false; 
                         }
-                        // 过滤掉单纯的标点符号行或者横线行
                         if (/^[-_—]+$/.test(trimmed) || /^[.,，。]+$/.test(trimmed)) {
                             return false;
                         }
                         return true;
                     }).join('\n');
+                    
+                    // 2. 强制抹除夹杂在段落开头的“月口”、“月日”、“年月日”等残留字符
+                    // 这会把文本中所有的孤立或者连着的 "月口", "月 日", "年 月 日" 给干掉
+                    currentOcrText = currentOcrText.replace(/(?:年|月|日|口)\s*(?:年|月|日|口)/g, '');
+                    currentOcrText = currentOcrText.replace(/^[年月口日\s]+/g, '');
                     
                     ocrText += (ocrText ? '\n' : '') + currentOcrText;
                 }
