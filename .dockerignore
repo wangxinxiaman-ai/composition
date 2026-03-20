@@ -4,3 +4,17 @@ node_modules
 temp_uploads
 data
 .DS_Store
+.trae
+deploy_package
+cloudbase_deploy
+作文测试
+*.zip
+*.docx
+*.md
+test_*.js
+test*.js
+mock_server.js
+zip_script.js
+build_zip.js
+prepare_deploy.ps1
+deploy_and_test.js

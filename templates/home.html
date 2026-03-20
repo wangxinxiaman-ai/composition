@@ -178,6 +178,10 @@
       '小学高年级想象文',
       '自定义评分规则'
     ];
+    function normalizeChoice(value) {
+      if (!value) return null;
+      return OPTIONS.includes(value) ? value : null;
+    }
     const choices = document.getElementById('choices');
     const chosenText = document.getElementById('chosenText');
     const studentList = document.getElementById('studentList');
@@ -281,10 +285,16 @@
         }
     };
 
-    // CloudBase Deployment Configuration
-    // Leave empty for local development (uses relative path)
-    // CloudBase will automatically map the root domain to the container
-    const API_BASE_URL = ''; 
+    const API_BASE_URL = (() => {
+        const { hostname, pathname } = window.location;
+        if (hostname === 'aiedu.wang' && pathname.startsWith('/composition')) {
+            return '/composition';
+        }
+        return '';
+    })();
+    function getResultPageUrl() {
+        return API_BASE_URL ? (API_BASE_URL + '/correction-template.html?mode=batch') : './correction-template.html?mode=batch';
+    }
     
     // Initialize CloudBase SDK
     let app, auth;
@@ -575,7 +585,8 @@
                           const formData = new FormData();
                           formData.append('file', f);
                           
-                          const uploadResp = await fetch('/api/upload', {
+                          const uploadApiUrl = API_BASE_URL ? (API_BASE_URL + '/api/upload') : '/api/upload';
+                          const uploadResp = await fetch(uploadApiUrl, {
                               method: 'POST',
                               body: formData
                           });
@@ -602,7 +613,8 @@
                           const startPoll = Date.now();
                           
                           while (Date.now() - startPoll < uploadTimeout) {
-                              const statusResp = await fetch(`/api/upload/${uploadId}`);
+                              const uploadStatusUrl = API_BASE_URL ? (API_BASE_URL + `/api/upload/${uploadId}`) : `/api/upload/${uploadId}`;
+                              const statusResp = await fetch(uploadStatusUrl);
                               if (!statusResp.ok) {
                                   throw new Error(`Failed to check upload status: ${statusResp.status}`);
                               }
@@ -650,8 +662,13 @@
                       };
                   }
 
+                  const selectedChoice = normalizeChoice(selected);
+                  if (!selectedChoice) {
+                      throw new Error('文体选择无效，请重新选择后再提交');
+                  }
+
                   const payload = { 
-                      choice: selected, 
+                      choice: selectedChoice, 
                       title: '', 
                       studentName: sName, 
                       fileIds: fileIDs, 
@@ -817,7 +834,7 @@
                   submitHint.textContent = `完成 ${batchResults.length}/${students.length}，正在打开结果页…`;
                   debugPanel.style.display = 'none'; // Hide debug panel on success
                   setTimeout(() => {
-                      window.location.href = './correction-template.html?mode=batch';
+                      window.location.href = getResultPageUrl();
                   }, 500);
               } catch (saveError) {
                   console.error('IndexedDB save failed:', saveError);
@@ -828,7 +845,7 @@
                       submitHint.textContent = `完成 ${batchResults.length}/${students.length}，正在打开结果页…`;
                       debugPanel.style.display = 'none'; // Hide debug panel on success
                       setTimeout(() => {
-                          window.location.href = './correction-template.html?mode=batch';
+                          window.location.href = getResultPageUrl();
                       }, 500);
                   } catch (localStorageError) {
                       throw new Error('存储失败：数据过大且 IndexedDB 不可用');
@@ -847,7 +864,10 @@
     };
 
     // 初始化
-    selected = localStorage.getItem('selectedStandard') || null;
+    selected = normalizeChoice(localStorage.getItem('selectedStandard'));
+    if (!selected) {
+        localStorage.removeItem('selectedStandard');
+    }
     if (selected) {
         chosenText.textContent = selected;
         if (selected === '自定义评分规则') {

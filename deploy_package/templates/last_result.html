@@ -187,7 +187,15 @@
          const problem = rest.substring(secondLastUnderscore + 1);
          const sentence = rest.substring(0, secondLastUnderscore);
          
-         return `<span class="mark-bad">${sentence}</span><span class="mark-bad-reason">（问题：${problem}）</span><span class="mark-bad-suggest">（建议：${suggestion}）</span>`;
+         // 过滤掉 suggestion 开头的“修改为：”或“修改为:”
+         let cleanSuggestion = suggestion;
+         if (cleanSuggestion.startsWith('修改为：')) {
+             cleanSuggestion = cleanSuggestion.substring(4);
+         } else if (cleanSuggestion.startsWith('修改为:')) {
+             cleanSuggestion = cleanSuggestion.substring(4);
+         }
+         
+         return `<span class="mark-bad">${sentence}</span><span class="mark-bad-reason">（问题：${problem}）</span><span class="mark-bad-suggest">（建议：${cleanSuggestion}）</span>`;
       });
 
       // 2. 解析好的句子 {句子_好在哪里}
@@ -281,11 +289,27 @@
       if (!dom || !DATA.dimensions.length) return;
       const chart = echarts.init(dom);
       
-      // 满分固定为 6
-      const maxScore = 6;
+      // 动态满分映射
+      const MAX_SCORES = {
+          "内容立意": 9,
+          "结构框架": 6,
+          "素材运用": 6,
+          "语言表达": 15,
+          "书写规范": 4,
+          // 兼容旧数据的"情感表达"
+          "情感表达": 6 
+      };
       
-      const chartData = DATA.dimensions.map(d => parseInt(d.score));
-      const indicators = DATA.dimensions.map(d => ({ name: d.name, max: maxScore }));
+      // 将所有分数按满分比例转换为 100 分制
+      const chartData = DATA.dimensions.map(d => {
+          const max = MAX_SCORES[d.name] || 6;
+          return (parseInt(d.score) / max) * 100;
+      });
+      // 雷达图的每个角满分统一设为 100
+      const indicators = DATA.dimensions.map(d => ({ 
+          name: d.name, 
+          max: 100 
+      }));
       
       const textColors = ['#ef4444','#10b981','#6366f1','#0ea5e9','#f59e0b','#ec4899'];
       const rich = {};
@@ -323,7 +347,7 @@
               center: ['50%', '50%'], 
               radius: '62%', 
               indicator: indicators,
-              splitNumber: 6, 
+              splitNumber: 4, // 调整分割线数量以适应不同满分
               name: {
                 formatter: function (name) { 
                     const k = nameToStyle.get(name) || 'c0'; 

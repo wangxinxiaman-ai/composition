@@ -24,8 +24,10 @@ COPY requirements.txt ./
 # Install Python dependencies (using default PyPI for stability)
 RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
 
-# Copy the rest of the application code
-COPY . .
+COPY server.js ./
+COPY src ./src
+COPY templates ./templates
+COPY public ./public
 
 # Expose port 80 (CloudBase default)
 EXPOSE 80

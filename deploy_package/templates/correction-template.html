@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
   <!-- Use local echarts for reliability -->
-  <script src="/public/js/echarts.min.js"></script>
+  <script src="./public/js/echarts.min.js"></script>
   <style>
     :root { --bg:#f7f8fa; --card:#ffffff; --text:#1f2d3d; --muted:#6b7280; --accent:#4f46e5; --accent-2:#14b8a6; --accent-3:#ef4444; --border:#e5e7eb; --good:#10b981; --warn:#f59e0b; }
     html,body { background: var(--bg); color: var(--text); font-family: 'Noto Sans SC', system-ui, -apple-system, 'Segoe UI', Roboto; }
@@ -63,6 +63,30 @@
     .section { margin-top: 10px; }
     .section h4 { margin: 0 0 10px; font-size: 16px; color: var(--text); border-left: 4px solid var(--accent); padding-left: 10px; }
     .overall { background: #fdf4ff; border: 1px solid #f0abfc; border-radius: 12px; padding: 20px; color: #0044cc; line-height: 1.8; font-size: 16px; }
+    
+    /* ===== 日志面板样式（与home.html完全一致）===== */
+    #debug-log-panel {
+        position: fixed;
+        bottom: 0;
+        right: 0;
+        width: 100%;
+        max-width: 600px;
+        height: 300px;
+        background: rgba(0, 0, 0, 0.85);
+        color: #0f0;
+        font-family: monospace;
+        font-size: 12px;
+        padding: 10px;
+        overflow-y: auto;
+        z-index: 9999;
+        display: none;
+        border-top-left-radius: 8px;
+        box-shadow: -2px -2px 10px rgba(0,0,0,0.2);
+    }
+    #debug-log-panel .log-entry { border-bottom: 1px solid #333; padding: 2px 0; }
+    #debug-log-panel .log-time { color: #888; margin-right: 8px; }
+    #debug-log-panel .log-error { color: #ff5555; }
+    #debug-log-panel .log-heartbeat { color: #55ffff; }
     
     @media (max-width: 1000px) { .grid { grid-template-columns: 1fr; } }
     @media print {
@@ -127,7 +151,13 @@
 <body>
   <div class="page">
     <div class="header">
-      <div class="title" id="hdrTitle"></div>
+      <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+        <div class="title" id="hdrTitle" style="margin-bottom: 0;"></div>
+        <a href="home.html" style="text-decoration: none; color: #4f46e5; font-weight: 500; font-size: 16px; display: flex; align-items: center; gap: 4px; padding: 8px 12px; background: #eef2ff; border-radius: 8px; transition: all 0.2s;" onmouseover="this.style.background='#e0e7ff'" onmouseout="this.style.background='#eef2ff'">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          返回首页
+        </a>
+      </div>
       
       <!-- 学生切换导航栏 (批量模式下显示) -->
       <div id="studentNav" style="display:none; margin-top:16px; gap:10px; flex-wrap:wrap;"></div>
@@ -179,48 +209,159 @@
     let DATA = {};
     let chartInstance = null;
 
-    function init() {
+    // ========================================
+    // IndexedDB Storage Adapter (same as home.html)
+    // ========================================
+    const CorrectionDB = {
+        dbName: 'CorrectionDB',
+        storeName: 'corrections',
+        version: 1,
+        
+        async openDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(this.dbName, this.version);
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => resolve(request.result);
+                request.onupgradeneeded = (event) => {
+                    const db = event.target.result;
+                    if (!db.objectStoreNames.contains(this.storeName)) {
+                        db.createObjectStore(this.storeName, { keyPath: 'id' });
+                    }
+                };
+            });
+        },
+        
+        async get() {
+            try {
+                const db = await this.openDB();
+                const transaction = db.transaction([this.storeName], 'readonly');
+                const store = transaction.objectStore(this.storeName);
+                
+                return new Promise((resolve, reject) => {
+                    const request = store.get('batchCorrectionData');
+                    request.onsuccess = () => {
+                        const result = request.result;
+                        resolve(result ? result.data : null);
+                    };
+                    request.onerror = () => reject(request.error);
+                });
+            } catch (error) {
+                console.error('IndexedDB get error:', error);
+                return null;
+            }
+        }
+    };
+
+    async function init() {
         const urlParams = new URLSearchParams(window.location.search);
         const mode = urlParams.get('mode');
         
         if (mode === 'batch') {
+            // ✅ Try IndexedDB first, fallback to localStorage
+            logDebug('开始加载批改数据...', 'info');
             try {
-                const s = localStorage.getItem('batchCorrectionData');
-                if (s) BATCH_DATA = JSON.parse(s);
-            } catch(e) { console.error(e); }
+                const data = await CorrectionDB.get();
+                logDebug(`IndexedDB原始数据: ${JSON.stringify(data).substring(0, 100)}...`, 'info');
+                logDebug(`数据类型: ${typeof data}, 是否为数组: ${Array.isArray(data)}`, 'info');
+                
+                if (data && Array.isArray(data) && data.length > 0) {
+                    BATCH_DATA = data;
+                    logDebug(`✅ 从 IndexedDB 读取 ${BATCH_DATA.length} 个批改结果`, 'success');
+                    logDebug(`BATCH_DATA详情: ${JSON.stringify(BATCH_DATA.map((item, idx) => ({
+                        idx: idx+1,
+                        name: item.studentName || item['作者姓名'] || `学生${idx+1}`,
+                        hasTitle: !!item['作文题目'],
+                        hasText: !!item['原文'],
+                        hasScore: !!item['总分']
+                    })))}`, 'info');
+                } else {
+                    logDebug('⚠️ IndexedDB数据为空或格式错误，尝试localStorage', 'warn');
+                    // Fallback to localStorage
+                    const s = localStorage.getItem('batchCorrectionData');
+                    if (s) {
+                        BATCH_DATA = JSON.parse(s);
+                        logDebug(`⚠️ Fallback: 从 localStorage 读取 ${BATCH_DATA.length} 个结果`, 'warn');
+                        logDebug(`localStorage数据: ${JSON.stringify(BATCH_DATA.map((item, idx) => ({
+                            idx: idx+1,
+                            name: item.studentName || item['作者姓名'] || `学生${idx+1}`
+                        })))}`, 'info');
+                    }
+                }
+            } catch(e) {
+                logDebug(`❌ 读取数据失败: ${e.message}`, 'error');
+                // Final fallback to localStorage
+                try {
+                    const s = localStorage.getItem('batchCorrectionData');
+                    if (s) {
+                        BATCH_DATA = JSON.parse(s);
+                        logDebug(`⚠️ 异常恢复: 从 localStorage 读取 ${BATCH_DATA.length} 个结果`, 'warn');
+                    }
+                } catch(e2) { 
+                    logDebug(`❌ localStorage也失败了: ${e2.message}`, 'error'); 
+                }
+            }
+            
+            logDebug(`🎯 最终 BATCH_DATA.length = ${BATCH_DATA.length}`, 'info');
             
             if (BATCH_DATA.length > 0) {
+                logDebug('📝 开始渲染导航栏...', 'info');
                 renderNav();
+                logDebug('📄 加载第一个学生数据...', 'info');
                 loadData(BATCH_DATA[0]);
             } else {
-                alert('未找到批量批改数据');
+                logDebug('❌ 没有找到任何批改数据', 'error');
+                alert('未找到批量批改数据\n\n请检查:\n1. 是否已完成批改\n2. 浏览器控制台是否有错误信息\n3. IndexedDB和localStorage是否被清空');
             }
         } else {
             // Single mode
+            logDebug('📄 单个学生模式，从localStorage读取数据', 'info');
             try {
                 const s = localStorage.getItem('correctionData');
-                if (s) loadData(JSON.parse(s));
-            } catch(e) { console.error(e); }
+                if (s) {
+                    logDebug('✅ 成功读取单个学生数据', 'success');
+                    loadData(JSON.parse(s));
+                } else {
+                    logDebug('⚠️ localStorage中没有数据', 'warn');
+                }
+            } catch(e) { 
+                logDebug(`❌ 单个学生数据加载失败: ${e.message}`, 'error');
+            }
         }
     }
 
     function loadData(j) {
-        if (!j) return;
-        const dimsCn = (j['五个维度评分及理由']||j['六个维度评分及理由']||[]).map(x => ({ name: x['维度'], score: x['得分'], reason: x['理由'] }));
+        logDebug(`📥 loadData 被调用，数据: ${JSON.stringify(j).substring(0, 100)}...`, 'info');
+        
+        if (!j) {
+            logDebug('❌ loadData 收到空数据', 'error');
+            return;
+        }
+        
+        // 解析维度评分
+        const dimsCn = (j['五个维度评分及理由']||j['六个维度评分及理由']||[]).map(x => ({ 
+            name: x['维度'], 
+            score: x['得分'], 
+            reason: x['理由'] 
+        }));
         const dimsFiltered = dimsCn.filter(d => d.name !== '规范书写');
+        
+        logDebug(`📊 解析到 ${dimsFiltered.length} 个维度: ${dimsFiltered.map(d => d.name).join(', ')}`, 'info');
         
         DATA = {
             title: j['作文题目']||j['title']||'',
             genre: j['文体']||j['genre']||'',
             studentName: j['作者姓名']||j['studentName']||'',
             createdAt: new Date().toLocaleString('zh-CN', { hour12: false }),
-            recognizedText: j['原文']||j['raw_text']||'',
+            recognizedText: j['原文']||j['raw_text']||j['recognizedText']||'',
             totalScore: j['总分']||j['totalScore']||0,
             dimensions: dimsFiltered,
             overallComment: j['综合评价']||j['overallComment']||'',
         };
         
+        logDebug(`✅ DATA 对象构建完成: {title: "${DATA.title}", studentName: "${DATA.studentName}", totalScore: ${DATA.totalScore}, dimensionCount: ${DATA.dimensions.length}, hasText: ${!!DATA.recognizedText}}`, 'success');
+        
         refreshView();
+        logDebug('✅ 视图刷新完成', 'success');
     }
     
     function renderNav() {
@@ -228,23 +369,38 @@
         nav.style.display = 'flex';
         nav.innerHTML = '';
         
+        logDebug(`🎨 开始渲染导航栏，BATCH_DATA.length = ${BATCH_DATA.length}`, 'info');
+        
+        if (!Array.isArray(BATCH_DATA)) {
+            logDebug(`❌ BATCH_DATA 不是数组！类型: ${typeof BATCH_DATA}`, 'error');
+            return;
+        }
+        
         BATCH_DATA.forEach((item, idx) => {
             const btn = document.createElement('button');
             const sName = item.studentName || item['作者姓名'] || `学生${idx+1}`;
+            logDebug(`➕ 创建按钮 ${idx+1}: ${sName}, 数据完整性: {title: ${!!item['作文题目']}, text: ${!!item['原文']}, score: ${!!item['总分']}}`, 'info');
+            
             btn.textContent = sName;
             btn.className = 'btn';
             btn.style.cssText = 'font-size:13px; padding:6px 12px; background:rgba(255,255,255,0.2); border:1px solid rgba(255,255,255,0.4);';
             
             btn.onclick = () => {
+                logDebug(`👆 点击切换到学生: ${sName}`, 'info');
                 // Update active state
                 Array.from(nav.children).forEach(b => b.style.background = 'rgba(255,255,255,0.2)');
                 btn.style.background = 'rgba(255,255,255,0.5)';
                 loadData(item);
             };
             
-            if (idx === 0) btn.style.background = 'rgba(255,255,255,0.5)';
+            if (idx === 0) {
+                btn.style.background = 'rgba(255,255,255,0.5)';
+                logDebug(`✅ 按钮 ${sName} 设置为激活状态`, 'success');
+            }
             nav.appendChild(btn);
         });
+        
+        logDebug(`✅ 导航栏渲染完成，共创建 ${nav.children.length} 个按钮`, 'success');
     }
 
     function refreshView() {
@@ -256,7 +412,7 @@
     
     function fillHeader(){
       const title = (DATA.title && DATA.title.trim()) || '作文批改结果';
-      const genre = (DATA.genre && DATA.genre.trim()) || (localStorage.getItem('selectedStandard')||'未提供');
+      const genre = (DATA.genre && DATA.genre.trim()) || '未提供';
       const student = (DATA.studentName||'未提供');
       const when = new Date().toLocaleString('zh-CN', { hour12: false });
       
@@ -307,7 +463,15 @@
          const problem = rest.substring(secondLastUnderscore + 1);
          const sentence = rest.substring(0, secondLastUnderscore);
          
-         return `<span class="mark-bad">${sentence}</span><span class="mark-bad-reason">（问题：${problem}）</span><span class="mark-bad-suggest">（建议：${suggestion}）</span>`;
+         // 过滤掉 suggestion 开头的“修改为：”或“修改为:”
+         let cleanSuggestion = suggestion;
+         if (cleanSuggestion.startsWith('修改为：')) {
+             cleanSuggestion = cleanSuggestion.substring(4);
+         } else if (cleanSuggestion.startsWith('修改为:')) {
+             cleanSuggestion = cleanSuggestion.substring(4);
+         }
+         
+         return `<span class="mark-bad">${sentence}</span><span class="mark-bad-reason">（问题：${problem}）</span><span class="mark-bad-suggest">（建议：${cleanSuggestion}）</span>`;
       });
 
       // 2. 解析好的句子 【句子_好在哪里】
@@ -415,11 +579,27 @@
       chartInstance = echarts.init(dom);
       const chart = chartInstance;
       
-      // 满分固定为 6
-      const maxScore = 6;
+      // 动态满分映射
+      const MAX_SCORES = {
+          "内容立意": 9,
+          "结构框架": 6,
+          "素材运用": 6,
+          "语言表达": 15,
+          "书写规范": 4,
+          // 兼容旧数据的"情感表达"
+          "情感表达": 6 
+      };
       
-      const chartData = DATA.dimensions.map(d => parseInt(d.score));
-      const indicators = DATA.dimensions.map(d => ({ name: d.name, max: maxScore }));
+      // 将所有分数按满分比例转换为 100 分制
+      const chartData = DATA.dimensions.map(d => {
+          const max = MAX_SCORES[d.name] || 6;
+          return (parseInt(d.score) / max) * 100;
+      });
+      // 雷达图的每个角满分统一设为 100
+      const indicators = DATA.dimensions.map(d => ({ 
+          name: d.name, 
+          max: 100 
+      }));
       
       const textColors = ['#ef4444','#10b981','#6366f1','#0ea5e9','#f59e0b','#ec4899'];
       const rich = {};
@@ -460,7 +640,7 @@
               radius: '60%', 
               nameGap: 15,
               indicator: indicators,
-            splitNumber: 6, 
+            splitNumber: 4, 
             name: {
               formatter: function (name) { 
                   const k = nameToStyle.get(name) || 'c0'; 
@@ -503,6 +683,13 @@
       window.addEventListener('resize', () => chart.resize());
     }
 
+    // ===== 日志系统（移除，仅保留后台打印）=====
+    const debugPanel = null;
+    
+    function logDebug(msg, type = 'info') {
+        console.log(`[logDebug] ${msg}`);
+    }
+    
     init();
   </script>
 </body>
