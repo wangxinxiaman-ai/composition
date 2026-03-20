@@ -69,7 +69,6 @@
   <div class="page">
     <div class="header">
       <div class="title">AI作文批改</div>
-      <div class="sub">请选择学段与文体（六项之一），上传 1–3 张作文图片后点击“批改”。</div>
     </div>
 
     <div class="card">
@@ -77,6 +76,74 @@
       <div class="card-body">
         <div class="grid-choices" id="choices"></div>
         <div class="hint">已选择：<span id="chosenText">未选择</span></div>
+      </div>
+      
+      <!-- 自定义规则表单，初始隐藏 -->
+      <div id="customRuleContainer" style="display: none; padding: 20px; border-top: 1px solid var(--border); background-color: #e0f2fe; border-bottom-left-radius: 16px; border-bottom-right-radius: 16px;">
+        <div style="margin-bottom: 12px; display: flex; gap: 10px;">
+            <div style="flex: 1;">
+                <label style="display: block; font-size: 14px; font-weight: 600; color: #1e40af; margin-bottom: 4px;">学段</label>
+                <select id="customRuleGrade" style="width: 100%; padding: 8px 12px; border: 1px solid #93c5fd; border-radius: 6px; box-sizing: border-box; background: white;">
+                    <option value="小学中年级">小学中年级</option>
+                    <option value="小学高年级">小学高年级</option>
+                    <option value="初中">初中</option>
+                    <option value="高中">高中</option>
+                </select>
+            </div>
+            <div style="flex: 1;">
+                <label style="display: block; font-size: 14px; font-weight: 600; color: #1e40af; margin-bottom: 4px;">文体</label>
+                <select id="customRuleGenre" style="width: 100%; padding: 8px 12px; border: 1px solid #93c5fd; border-radius: 6px; box-sizing: border-box; background: white;">
+                    <option value="记叙文">记叙文</option>
+                    <option value="想象文">想象文</option>
+                    <option value="说明文">说明文</option>
+                    <option value="议论文">议论文</option>
+                </select>
+            </div>
+        </div>
+        <div style="margin-bottom: 12px;">
+            <label style="display: block; font-size: 14px; font-weight: 600; color: #1e40af; margin-bottom: 4px;">主题 (选填)</label>
+            <input type="text" id="customRuleTopic" placeholder="例如：我的朋友" style="width: 100%; padding: 8px 12px; border: 1px solid #93c5fd; border-radius: 6px; box-sizing: border-box;">
+        </div>
+        <div style="margin-bottom: 12px;">
+            <label style="display: block; font-size: 14px; font-weight: 600; color: #1e40af; margin-bottom: 4px;">维度一：内容立意 (满分9分)</label>
+            <textarea id="customDim1" rows="6" placeholder="请输入内容立意评分标准..." style="width: 100%; padding: 8px 12px; border: 1px solid #93c5fd; border-radius: 6px; box-sizing: border-box; resize: vertical; line-height: 1.6;">核心标准：紧扣题意，选材有针对性、积极向上；事件经过完整有重点，能表达深刻真实感受，传递正向情感，无虚假、消极内容。
+• 一类（9分）：精准扣题，选材典型贴切；事件详略得当，情感真实饱满，立意积极有温度。
+• 二类（7分）：扣题准确，选材合理；事件完整，有明确个人感受，立意积极。
+• 三类（5分）：基本扣题，选材普通；事件交代清楚，情感表达平淡。
+• 四类（3分）：完全跑题，无完整事件，无法表意；空白卷给0分。</textarea>
+        </div>
+        <div style="margin-bottom: 12px;">
+            <label style="display: block; font-size: 14px; font-weight: 600; color: #1e40af; margin-bottom: 4px;">维度二：结构框架 (满分6分)</label>
+            <textarea id="customDim2" rows="6" placeholder="请输入结构框架评分标准..." style="width: 100%; padding: 8px 12px; border: 1px solid #93c5fd; border-radius: 6px; box-sizing: border-box; resize: vertical; line-height: 1.6;">核心标准：结构严谨，开头点题、中间详写、结尾升华；分段合理，条理清晰，过渡自然，逻辑严密，详略分明。
+• 一类（6分）：结构严谨，分段规范，过渡流畅，详略得当，条理清晰。
+• 二类（5分）：结构完整，分段合理，过渡自然，条理清楚。
+• 三类（3分）：结构基本完整，分段较乱，过渡生硬，详略不当。
+• 四类（2分）：结构残缺，不分段，无逻辑，不成文；空白卷给0分。</textarea>
+        </div>
+        <div style="margin-bottom: 12px;">
+            <label style="display: block; font-size: 14px; font-weight: 600; color: #1e40af; margin-bottom: 4px;">维度三：素材运用 (满分6分)</label>
+            <textarea id="customDim3" rows="6" placeholder="请输入素材运用评分标准..." style="width: 100%; padding: 8px 12px; border: 1px solid #93c5fd; border-radius: 6px; box-sizing: border-box; resize: vertical; line-height: 1.6;">核心标准：素材源于真实生活，有独特性不雷同；细节描写丰富（动作、神态、心理、环境），内容具体充实，杜绝泛泛而谈。
+• 一类（6分）：素材真实典型，内容详实，2处及以上细腻细节，有画面感。
+• 二类（5分）：素材真实，内容较具体，有细节描写，不空洞。
+• 三类（3分）：素材普通，内容笼统，细节较少，不够生动。
+• 四类（2分）：无有效素材，内容空洞，无细节；空白卷给0分。</textarea>
+        </div>
+        <div style="margin-bottom: 12px;">
+            <label style="display: block; font-size: 14px; font-weight: 600; color: #1e40af; margin-bottom: 4px;">维度四：语言表达 (满分15分)</label>
+            <textarea id="customDim4" rows="6" placeholder="请输入语言表达评分标准..." style="width: 100%; padding: 8px 12px; border: 1px solid #93c5fd; border-radius: 6px; box-sizing: border-box; resize: vertical; line-height: 1.6;">核心标准：语句流畅无语病，用词精准生动；灵活运用比喻、拟人、排比等修辞，巧用积累词句与新鲜感词句；情感融于文字，真情实感，无虚假抒情。
+• 一类（15分）：无病句，语言生动，2处及以上修辞，用词鲜活，情感自然流露。
+• 二类（11分）：病句≤3句，语句通顺，1处及以上修辞，用词准确，情感明确。
+• 三类（7分）：语句基本通顺，病句较多，无修辞，用词平淡。
+• 四类（5分）：语句不通，病句极多，无法完整表意；空白卷给0分。</textarea>
+        </div>
+        <div style="margin-bottom: 12px;">
+            <label style="display: block; font-size: 14px; font-weight: 600; color: #1e40af; margin-bottom: 4px;">维度五：书写规范 (满分4分)</label>
+            <textarea id="customDim5" rows="6" placeholder="请输入书写规范评分标准..." style="width: 100%; padding: 8px 12px; border: 1px solid #93c5fd; border-radius: 6px; box-sizing: border-box; resize: vertical; line-height: 1.6;">核心标准：卷面整洁，字迹工整，错别字控制合理，标点规范，无涂改。
+• 一类（4分）：整洁无涂改，错别字≤5个，标点全对，字迹工整。
+• 二类（3分）：较整洁，少量涂改，错别字超5个但不影响阅读。
+• 三类（2分）：不整洁，涂改多，错别字多且影响阅读。
+• 四类（1分）：潦草难辨，涂改严重；完全看不清、空白给0分。</textarea>
+        </div>
       </div>
     </div>
 
@@ -105,12 +172,11 @@
   <script src="/public/js/cloudbase.full.js"></script>
   <script>
     const OPTIONS = [
-      '小学记叙文（含散文、日记）',
-      '小学说明文（简单事物说明，如 “我的文具”“家乡的水果”）',
-      '小学议论文（简单观点议论，如 “要讲诚信”“坚持很重要”）',
-      '初中记叙文（含叙事散文）',
-      '初中说明文（复杂事物 / 事理说明，如 “智能手机的功能”“雨的形成”）',
-      '初中议论文（完整观点论证，如 “奋斗是青春的底色”“环保需从细节做起”）',
+      '小学中年级记叙文',
+      '小学高年级记叙文',
+      '小学中年级想象文',
+      '小学高年级想象文',
+      '自定义评分规则'
     ];
     const choices = document.getElementById('choices');
     const chosenText = document.getElementById('chosenText');
@@ -241,14 +307,83 @@
     let students = []; // Array of { id, name, images: [] }
     let nextId = 1;
 
+    // Load custom rule fields from localStorage
+    function loadCustomRules() {
+        const savedRules = localStorage.getItem('customRules');
+        if (savedRules) {
+            try {
+                const rules = JSON.parse(savedRules);
+                if (rules.grade) document.getElementById('customRuleGrade').value = rules.grade;
+                if (rules.genre) document.getElementById('customRuleGenre').value = rules.genre;
+                if (rules.topic) document.getElementById('customRuleTopic').value = rules.topic;
+                if (rules.dim1) document.getElementById('customDim1').value = rules.dim1;
+                if (rules.dim2) document.getElementById('customDim2').value = rules.dim2;
+                if (rules.dim3) document.getElementById('customDim3').value = rules.dim3;
+                if (rules.dim4) document.getElementById('customDim4').value = rules.dim4;
+                if (rules.dim5) document.getElementById('customDim5').value = rules.dim5;
+            } catch (e) {
+                console.error('Failed to parse saved custom rules', e);
+            }
+        }
+    }
+
+    // Save custom rule fields to localStorage
+    function saveCustomRules() {
+        const rules = {
+            grade: document.getElementById('customRuleGrade').value,
+            genre: document.getElementById('customRuleGenre').value,
+            topic: document.getElementById('customRuleTopic').value,
+            dim1: document.getElementById('customDim1').value,
+            dim2: document.getElementById('customDim2').value,
+            dim3: document.getElementById('customDim3').value,
+            dim4: document.getElementById('customDim4').value,
+            dim5: document.getElementById('customDim5').value
+        };
+        localStorage.setItem('customRules', JSON.stringify(rules));
+    }
+
     function renderChoices(){
       choices.innerHTML = '';
       OPTIONS.forEach((text, idx) => {
-        const el = document.createElement('div'); el.className = 'choice' + (selected === text ? ' selected' : '');
-        const t = document.createElement('div'); t.className = 'choice-title'; t.textContent = text;
-        const d = document.createElement('div'); d.className = 'choice-desc'; d.textContent = '点击选择该文体';
-        el.appendChild(t); el.appendChild(d);
-        el.onclick = () => { selected = text; localStorage.setItem('selectedStandard', selected); renderChoices(); chosenText.textContent = selected; validate(); };
+        const isCustom = text === '自定义评分规则';
+        const el = document.createElement('div'); 
+        el.className = 'choice' + (selected === text ? ' selected' : '');
+        
+        // Remove description text, make choice more compact and simple
+        el.style.padding = '14px 16px';
+        el.style.textAlign = 'center';
+        
+        if (isCustom) {
+            // Light green background for custom rule button
+            el.style.backgroundColor = selected === text ? '#dcfce7' : '#f0fdf4';
+            el.style.borderColor = selected === text ? '#16a34a' : '#bbf7d0';
+        }
+
+        const t = document.createElement('div'); 
+        t.className = 'choice-title'; 
+        t.textContent = text;
+        if (isCustom) {
+            t.style.color = '#166534';
+        }
+
+        el.appendChild(t);
+        
+        el.onclick = () => { 
+            selected = text; 
+            localStorage.setItem('selectedStandard', selected); 
+            
+            // 切换自定义规则表单的显示状态
+            const customContainer = document.getElementById('customRuleContainer');
+            if (isCustom) {
+                customContainer.style.display = 'block';
+            } else {
+                customContainer.style.display = 'none';
+            }
+            
+            renderChoices(); 
+            chosenText.textContent = selected; 
+            validate(); 
+        };
         choices.appendChild(el);
       });
     }
@@ -391,6 +526,10 @@
     }
 
     submitBtn.onclick = async () => {
+      if (selected === '自定义评分规则') {
+          saveCustomRules(); // Save rules before submitting
+      }
+
       submitBtn.disabled = true;
       submitHint.className = 'success';
       submitHint.style.display = 'block';
@@ -492,13 +631,32 @@
                   
                   // SDK Upload Logic Removed - We use Proxy exclusively now.
 
+                  let customStandard = null;
+                  if (selected === '自定义评分规则') {
+                      const grade = document.getElementById('customRuleGrade').value;
+                      const genre = document.getElementById('customRuleGenre').value;
+                      const topic = document.getElementById('customRuleTopic').value.trim();
+                      
+                      // 如果填写了主题，则将主题拼接到名称中，否则只用学段+文体
+                      const ruleName = topic ? `${grade}${genre}《${topic}》` : `${grade}${genre}`;
+                      
+                      customStandard = {
+                          name: ruleName,
+                          dim1: document.getElementById('customDim1').value || '',
+                          dim2: document.getElementById('customDim2').value || '',
+                          dim3: document.getElementById('customDim3').value || '',
+                          dim4: document.getElementById('customDim4').value || '',
+                          dim5: document.getElementById('customDim5').value || ''
+                      };
+                  }
 
                   const payload = { 
                       choice: selected, 
                       title: '', 
                       studentName: sName, 
                       fileIds: fileIDs, 
-                      imageDataUrls: fallbackDataUrls.length > 0 ? fallbackDataUrls : []
+                      imageDataUrls: fallbackDataUrls.length > 0 ? fallbackDataUrls : [],
+                      customStandard: customStandard
                   };
                   
                   const apiUrl = API_BASE_URL ? (API_BASE_URL + '/api/correct') : '/api/correct';
@@ -657,6 +815,7 @@
                   await CorrectionDB.save(cleanedResults);
                   console.log(`✅ 已存储 ${batchResults.length} 个批改结果到 IndexedDB`);
                   submitHint.textContent = `完成 ${batchResults.length}/${students.length}，正在打开结果页…`;
+                  debugPanel.style.display = 'none'; // Hide debug panel on success
                   setTimeout(() => {
                       window.location.href = './correction-template.html?mode=batch';
                   }, 500);
@@ -667,6 +826,7 @@
                       localStorage.setItem('batchCorrectionData', JSON.stringify(cleanedResults));
                       console.log('⚠️ Fallback: 已使用 localStorage 存储');
                       submitHint.textContent = `完成 ${batchResults.length}/${students.length}，正在打开结果页…`;
+                      debugPanel.style.display = 'none'; // Hide debug panel on success
                       setTimeout(() => {
                           window.location.href = './correction-template.html?mode=batch';
                       }, 500);
@@ -688,7 +848,13 @@
 
     // 初始化
     selected = localStorage.getItem('selectedStandard') || null;
-    if (selected) chosenText.textContent = selected;
+    if (selected) {
+        chosenText.textContent = selected;
+        if (selected === '自定义评分规则') {
+            document.getElementById('customRuleContainer').style.display = 'block';
+            loadCustomRules();
+        }
+    }
     renderChoices();
     addStudent(); // Start with one student
 

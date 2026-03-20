@@ -151,7 +151,13 @@
 <body>
   <div class="page">
     <div class="header">
-      <div class="title" id="hdrTitle"></div>
+      <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+        <div class="title" id="hdrTitle" style="margin-bottom: 0;"></div>
+        <a href="home.html" style="text-decoration: none; color: #4f46e5; font-weight: 500; font-size: 16px; display: flex; align-items: center; gap: 4px; padding: 8px 12px; background: #eef2ff; border-radius: 8px; transition: all 0.2s;" onmouseover="this.style.background='#e0e7ff'" onmouseout="this.style.background='#eef2ff'">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          返回首页
+        </a>
+      </div>
       
       <!-- 学生切换导航栏 (批量模式下显示) -->
       <div id="studentNav" style="display:none; margin-top:16px; gap:10px; flex-wrap:wrap;"></div>
@@ -197,9 +203,6 @@
       </div>
     </div>
   </div>
-
-  <!-- 日志面板（必须在script之前，确保getElementById能找到）-->
-  <div id="debug-log-panel"></div>
 
   <script>
     let BATCH_DATA = [];
@@ -460,7 +463,15 @@
          const problem = rest.substring(secondLastUnderscore + 1);
          const sentence = rest.substring(0, secondLastUnderscore);
          
-         return `<span class="mark-bad">${sentence}</span><span class="mark-bad-reason">（问题：${problem}）</span><span class="mark-bad-suggest">（建议：${suggestion}）</span>`;
+         // 过滤掉 suggestion 开头的“修改为：”或“修改为:”
+         let cleanSuggestion = suggestion;
+         if (cleanSuggestion.startsWith('修改为：')) {
+             cleanSuggestion = cleanSuggestion.substring(4);
+         } else if (cleanSuggestion.startsWith('修改为:')) {
+             cleanSuggestion = cleanSuggestion.substring(4);
+         }
+         
+         return `<span class="mark-bad">${sentence}</span><span class="mark-bad-reason">（问题：${problem}）</span><span class="mark-bad-suggest">（建议：${cleanSuggestion}）</span>`;
       });
 
       // 2. 解析好的句子 【句子_好在哪里】
@@ -568,11 +579,27 @@
       chartInstance = echarts.init(dom);
       const chart = chartInstance;
       
-      // 满分固定为 6
-      const maxScore = 6;
+      // 动态满分映射
+      const MAX_SCORES = {
+          "内容立意": 9,
+          "结构框架": 6,
+          "素材运用": 6,
+          "语言表达": 15,
+          "书写规范": 4,
+          // 兼容旧数据的"情感表达"
+          "情感表达": 6 
+      };
       
-      const chartData = DATA.dimensions.map(d => parseInt(d.score));
-      const indicators = DATA.dimensions.map(d => ({ name: d.name, max: maxScore }));
+      // 将所有分数按满分比例转换为 100 分制
+      const chartData = DATA.dimensions.map(d => {
+          const max = MAX_SCORES[d.name] || 6;
+          return (parseInt(d.score) / max) * 100;
+      });
+      // 雷达图的每个角满分统一设为 100
+      const indicators = DATA.dimensions.map(d => ({ 
+          name: d.name, 
+          max: 100 
+      }));
       
       const textColors = ['#ef4444','#10b981','#6366f1','#0ea5e9','#f59e0b','#ec4899'];
       const rich = {};
@@ -613,7 +640,7 @@
               radius: '60%', 
               nameGap: 15,
               indicator: indicators,
-            splitNumber: 6, 
+            splitNumber: 4, 
             name: {
               formatter: function (name) { 
                   const k = nameToStyle.get(name) || 'c0'; 
@@ -656,28 +683,11 @@
       window.addEventListener('resize', () => chart.resize());
     }
 
-    // ===== 日志系统（必须在init()之前定义）=====
-    const debugPanel = document.getElementById('debug-log-panel');
+    // ===== 日志系统（移除，仅保留后台打印）=====
+    const debugPanel = null;
     
     function logDebug(msg, type = 'info') {
-        if (!debugPanel) {
-            console.log(`[logDebug] ${msg}`);
-            return;
-        }
-        const div = document.createElement('div');
-        div.className = 'log-entry';
-        const time = new Date().toLocaleTimeString() + '.' + String(new Date().getMilliseconds()).padStart(3, '0');
-        const typeClass = type === 'error' ? 'log-error' : (type === 'heartbeat' ? 'log-heartbeat' : '');
-        div.innerHTML = `<span class="log-time">[${time}]</span><span class="${typeClass}">${msg}</span>`;
-        debugPanel.appendChild(div);
-        debugPanel.scrollTop = debugPanel.scrollHeight;
-        console.log(`[${time}] ${msg}`);
-    }
-    
-    // 页面加载时自动显示日志面板
-    if (debugPanel) {
-        debugPanel.style.display = 'block';
-        logDebug('🎬 结果页面已加载', 'info');
+        console.log(`[logDebug] ${msg}`);
     }
     
     init();
